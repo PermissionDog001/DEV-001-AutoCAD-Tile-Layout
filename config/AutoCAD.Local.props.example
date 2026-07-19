@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Copy this file to AutoCAD.Local.props and set the local AutoCAD 2021 installation directory. -->
+    <AutoCAD2021Dir>C:\Path\To\AutoCAD 2021</AutoCAD2021Dir>
+  </PropertyGroup>
+</Project>

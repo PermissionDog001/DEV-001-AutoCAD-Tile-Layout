@@ -1,0 +1,57 @@
+# Build outputs
+[Bb]in/
+[Oo]bj/
+build/
+dist/*
+!dist/README.md
+
+# Visual Studio and IDE state
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+TestResults/
+
+# .NET packages and generated files
+packages/
+*.nupkg
+*.snupkg
+*.pdb
+*.cache
+*.log
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+config/AutoCAD.Local.props
+*.pfx
+*.p12
+*.key
+*.cer
+secrets.json
+
+# User inputs are local and may be sensitive
+inputs/*
+!inputs/README.md
+
+# Temporary work
+work/*
+!work/README.md
+
+# AutoCAD temporary/backup files
+*.bak
+*.dwl
+*.dwl2
+*.ac$
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Test fixtures may include DWG files only after explicit de-identification
+tests/fixtures/*.dwg
+!tests/fixtures/README.md

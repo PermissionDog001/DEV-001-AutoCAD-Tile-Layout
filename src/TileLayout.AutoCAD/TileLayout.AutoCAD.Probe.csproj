@@ -1,0 +1,71 @@
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="..\..\config\AutoCAD.Local.props" Condition="Exists('..\..\config\AutoCAD.Local.props')" />
+
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
+    <ProjectGuid>{BC45AF7C-0E78-4E6B-A98A-EA116D21D558}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>TileLayout.AutoCAD.Probe</RootNamespace>
+    <AssemblyName>TileLayout.AutoCAD.Probe</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+    <AutoCAD2021Dir Condition=" '$(AutoCAD2021Dir)' == '' ">$(AUTOCAD2021_DIR)</AutoCAD2021Dir>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>..\..\build\probe\Debug\</OutputPath>
+    <IntermediateOutputPath>..\..\build\obj\TileLayout.AutoCAD.Probe\Debug\</IntermediateOutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <LangVersion>7.3</LangVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>..\..\build\probe\Release\</OutputPath>
+    <IntermediateOutputPath>..\..\build\obj\TileLayout.AutoCAD.Probe\Release\</IntermediateOutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <LangVersion>7.3</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="AcCoreMgd">
+      <HintPath>$(AutoCAD2021Dir)\AcCoreMgd.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="AcDbMgd">
+      <HintPath>$(AutoCAD2021Dir)\AcDbMgd.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="AcMgd">
+      <HintPath>$(AutoCAD2021Dir)\AcMgd.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="Commands\TileProbeCommands.cs" />
+    <Compile Include="PluginEntry.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+
+  <Target Name="ValidateAutoCAD2021References" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition=" '$(AutoCAD2021Dir)' == '' " Text="AutoCAD2021Dir is not configured. Copy config\AutoCAD.Local.props.example to config\AutoCAD.Local.props or set AUTOCAD2021_DIR." />
+    <Error Condition=" !Exists('$(AutoCAD2021Dir)\AcCoreMgd.dll') " Text="AcCoreMgd.dll was not found under AutoCAD2021Dir: $(AutoCAD2021Dir)" />
+    <Error Condition=" !Exists('$(AutoCAD2021Dir)\AcDbMgd.dll') " Text="AcDbMgd.dll was not found under AutoCAD2021Dir: $(AutoCAD2021Dir)" />
+    <Error Condition=" !Exists('$(AutoCAD2021Dir)\AcMgd.dll') " Text="AcMgd.dll was not found under AutoCAD2021Dir: $(AutoCAD2021Dir)" />
+  </Target>
+
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
