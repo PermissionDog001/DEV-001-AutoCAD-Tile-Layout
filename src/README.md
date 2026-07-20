@@ -1,10 +1,11 @@
 # src
 
-产品源码目录。当前 `TileLayout.AutoCAD/TileLayout.AutoCAD.Probe.csproj` 是 M1 最小技术探针，不代表完整 V0.1 功能。
+产品源码目录。`TileLayout.Core` 是 M2 已完成的宿主无关核心；M3 正式项目为 `TileLayout.AutoCAD/TileLayout.AutoCAD.csproj`。`TileLayout.AutoCAD/TileLayout.AutoCAD.Probe.csproj` 仍是 M1 最小技术探针，不代表完整 V0.1 功能。
 
-技术探针通过后计划建立：
+当前结构：
 
-- `TileLayout.Core`：与 AutoCAD 无关的核心几何和网格算法；
-- `TileLayout.AutoCAD`：AutoCAD 2021 命令、选择、事务、图层和写回适配。
+- `TileLayout.Core`：已建立，与 AutoCAD 无关的三维线模型、矩形验证和固定 600 mm 网格算法；
+- `TileLayout.AutoCAD.csproj`：正式 AutoCAD 2021 适配，提供 `TILE600`，负责模型空间/毫米检查、四线选择、核心快照转换、事务、`TILE_LAYOUT_600` 图层和分格线写回；
+- `TileLayout.AutoCAD.Probe.csproj`：保留 M1 `TILE600PROBE` 回归探针，与正式插件分开构建和加载。
 
-探针固定使用 .NET Framework 4.8 和 x64，仅验证 `NETLOAD`、四条 `LINE`、矩形尺寸、测试图层写入和一次撤销。探针通过前不建设完整排版算法、复杂 UI 或安装器。
+全部项目使用 .NET Framework 4.8。核心不得引用 Autodesk 程序集；正式 AutoCAD 项目负责把宿主对象转换为核心模型并调用核心算法。两个 AutoCAD 项目固定使用 x64，Autodesk 引用均为 `Copy Local=false`。

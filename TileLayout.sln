@@ -1,0 +1,39 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TileLayout.Core", "src\TileLayout.Core\TileLayout.Core.csproj", "{4E920E6E-F0A8-45E3-86B5-70A70DBD8455}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TileLayout.AutoCAD.Probe", "src\TileLayout.AutoCAD\TileLayout.AutoCAD.Probe.csproj", "{BC45AF7C-0E78-4E6B-A98A-EA116D21D558}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TileLayout.AutoCAD", "src\TileLayout.AutoCAD\TileLayout.AutoCAD.csproj", "{2F6D1BF4-66F4-4F42-9764-0E3980864639}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TileLayout.Core.Tests", "tests\TileLayout.Core.Tests\TileLayout.Core.Tests.csproj", "{8F18EA3D-73A4-4DBB-8EAB-C90D58E96190}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4E920E6E-F0A8-45E3-86B5-70A70DBD8455}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4E920E6E-F0A8-45E3-86B5-70A70DBD8455}.Debug|x64.Build.0 = Debug|Any CPU
+		{4E920E6E-F0A8-45E3-86B5-70A70DBD8455}.Release|x64.ActiveCfg = Release|Any CPU
+		{4E920E6E-F0A8-45E3-86B5-70A70DBD8455}.Release|x64.Build.0 = Release|Any CPU
+		{BC45AF7C-0E78-4E6B-A98A-EA116D21D558}.Debug|x64.ActiveCfg = Debug|x64
+		{BC45AF7C-0E78-4E6B-A98A-EA116D21D558}.Debug|x64.Build.0 = Debug|x64
+		{BC45AF7C-0E78-4E6B-A98A-EA116D21D558}.Release|x64.ActiveCfg = Release|x64
+		{BC45AF7C-0E78-4E6B-A98A-EA116D21D558}.Release|x64.Build.0 = Release|x64
+		{2F6D1BF4-66F4-4F42-9764-0E3980864639}.Debug|x64.ActiveCfg = Debug|x64
+		{2F6D1BF4-66F4-4F42-9764-0E3980864639}.Debug|x64.Build.0 = Debug|x64
+		{2F6D1BF4-66F4-4F42-9764-0E3980864639}.Release|x64.ActiveCfg = Release|x64
+		{2F6D1BF4-66F4-4F42-9764-0E3980864639}.Release|x64.Build.0 = Release|x64
+		{8F18EA3D-73A4-4DBB-8EAB-C90D58E96190}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8F18EA3D-73A4-4DBB-8EAB-C90D58E96190}.Debug|x64.Build.0 = Debug|Any CPU
+		{8F18EA3D-73A4-4DBB-8EAB-C90D58E96190}.Release|x64.ActiveCfg = Release|Any CPU
+		{8F18EA3D-73A4-4DBB-8EAB-C90D58E96190}.Release|x64.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
