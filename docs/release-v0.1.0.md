@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-V0.1.0 本地交付包及全部 M5 检查已完成，尚未对外发布。Release 构建、自动测试、包内容、SHA-256 和一次 AutoCAD 2021 冒烟均已通过。未经用户明确授权，不提交、推送、创建 PR、创建远程 Release、发布或部署。
+V0.1.0 本地交付包及全部 M5 检查已完成，并已于 2026-07-20 发布到私有 GitHub Release。Release 构建、自动测试、包内容、SHA-256 和一次 AutoCAD 2021 冒烟均已通过。仓库与 Release 当前均为私有，尚未公开发布或部署。
 
 ## 版本与目标环境
 
@@ -58,4 +58,12 @@ V0.1.0 只支持模型空间、毫米单位、同一高程、WCS 轴对齐的单
 
 ## 发布决定
 
-M5 已完成，本地交付包不等于已经对外发布。真正提交、推送、创建远程 Release、发布或部署仍需用户另行明确授权。
+用户已于 2026-07-20 明确授权 GitHub 发布，执行结果如下：
+
+- 私有仓库：`PermissionDog001/DEV-001-AutoCAD-Tile-Layout`；
+- 默认分支：`main`；
+- 版本标签：`v0.1.0`，指向验收提交 `b31bc13`；
+- Release：[TileLayout V0.1.0](https://github.com/PermissionDog001/DEV-001-AutoCAD-Tile-Layout/releases/tag/v0.1.0)；
+- 附件：`TileLayout-0.1.0.zip`、`TileLayout-0.1.0-sha256.txt`；
+- 远程附件大小和 SHA-256 已与本地复核一致；
+- Release 不是草稿或预发布；仓库和 Release 当前保持私有，尚未公开发布或部署。

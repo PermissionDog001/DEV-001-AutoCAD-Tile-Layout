@@ -4,7 +4,7 @@ DEV-001 是一个面向 Autodesk AutoCAD 2021 的 C# Managed .NET 插件项目�
 
 ## 当前状态
 
-M1 至 M5 均已完成。M4-01 至 M4-16 全部通过；M5 Release 重建和 27/27 自动测试通过，V0.1.0 最小包、说明和 SHA-256 已核验，AutoCAD 2021 发布包冒烟也已确认正式 DLL 加载成功、生成 23 条并可一次撤销。包中只有两个运行 DLL 和使用说明，未包含 Autodesk DLL、DWG、PDB、缓存或测试组件。未发现需要修改产品源码的可复现缺陷；本地交付包尚未对外发布。
+M1 至 M5 均已完成。M4-01 至 M4-16 全部通过；M5 Release 重建和 27/27 自动测试通过，V0.1.0 最小包、说明和 SHA-256 已核验，AutoCAD 2021 发布包冒烟也已确认正式 DLL 加载成功、生成 23 条并可一次撤销。包中只有两个运行 DLL 和使用说明，未包含 Autodesk DLL、DWG、PDB、缓存或测试组件。未发现需要修改产品源码的可复现缺陷；V0.1.0 已发布到私有 GitHub Release，尚未公开发布。
 
 ## V0.1 目标
 
@@ -145,4 +145,4 @@ M4 必须使用用户确认已经脱敏的真实图纸抽取副本，不在原�
 - 校验清单：`dist/TileLayout-0.1.0-sha256.txt`
 - 包内文件：`TileLayout.AutoCAD.dll`、`TileLayout.Core.dll`、`使用说明.md`
 
-2026-07-20，完整解决方案 Release 在 `build/solution-m5/Release` 备用目录重建通过，Release 自动测试 27/27 通过；两个程序集的 AssemblyVersion/FileVersion 均为 `0.1.0.0`。用户随后从交付包 `NETLOAD` 正式 DLL，在脱敏夹具执行一次 `TILE600`，确认加载成功、生成 23 条并可一次撤销。M5 已完成；本地交付包不等于已经对外发布。详见 [docs/release-v0.1.0.md](docs/release-v0.1.0.md)。
+2026-07-20，完整解决方案 Release 在 `build/solution-m5/Release` 备用目录重建通过，Release 自动测试 27/27 通过；两个程序集的 AssemblyVersion/FileVersion 均为 `0.1.0.0`。用户随后从交付包 `NETLOAD` 正式 DLL，在脱敏夹具执行一次 `TILE600`，确认加载成功、生成 23 条并可一次撤销。V0.1.0 已发布到私有仓库的 [GitHub Release](https://github.com/PermissionDog001/DEV-001-AutoCAD-Tile-Layout/releases/tag/v0.1.0)，包含 ZIP 和 SHA-256 清单；尚未公开发布。详见 [docs/release-v0.1.0.md](docs/release-v0.1.0.md)。
