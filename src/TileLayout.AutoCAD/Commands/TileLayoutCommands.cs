@@ -14,7 +14,8 @@ namespace TileLayout.AutoCAD
 {
     public sealed class TileLayoutCommands
     {
-        private const string LayoutLayerName = "TILE_LAYOUT_600";
+        private const string FixedLayoutLayerName = "TILE_LAYOUT_600";
+        private const string ParameterizedLayoutLayerName = "TILE_LAYOUT";
 
         [CommandMethod("TILE600", CommandFlags.Modal)]
         public void CreateTileLayout()
@@ -25,20 +26,60 @@ namespace TileLayout.AutoCAD
                 return;
             }
 
+            ExecuteLayout(
+                document,
+                "TILE600",
+                FixedLayoutLayerName,
+                null);
+        }
+
+        [CommandMethod("TILELAYOUT", CommandFlags.Modal)]
+        public void CreateParameterizedTileLayout()
+        {
+            Document document = Application.DocumentManager.MdiActiveDocument;
+            if (document == null)
+            {
+                return;
+            }
+
+            TileLayoutParameters parameters;
+            if (!TryPromptTileLayoutParameters(document.Editor, out parameters))
+            {
+                document.Editor.WriteMessage(
+                    "\nTILELAYOUT 已取消，未进入边界选择，未生成任何对象。");
+                return;
+            }
+
+            ExecuteLayout(
+                document,
+                "TILELAYOUT",
+                ParameterizedLayoutLayerName,
+                parameters);
+        }
+
+        private static void ExecuteLayout(
+            Document document,
+            string commandName,
+            string layoutLayerName,
+            TileLayoutParameters parameters)
+        {
             Database database = document.Database;
             Editor editor = document.Editor;
 
             if (!database.TileMode)
             {
-                editor.WriteMessage("\n请切换到模型空间后再执行 TILE600。未生成任何对象。");
+                editor.WriteMessage(
+                    "\n请切换到模型空间后再执行 {0}。未生成任何对象。",
+                    commandName);
                 return;
             }
 
             if (database.Insunits != UnitsValue.Millimeters)
             {
                 editor.WriteMessage(
-                    "\n当前图纸单位不是毫米（INSUNITS={0}），TILE600 已停止。未生成任何对象。",
-                    database.Insunits);
+                    "\n当前图纸单位不是毫米（INSUNITS={0}），{1} 已停止。未生成任何对象。",
+                    database.Insunits,
+                    commandName);
                 return;
             }
 
@@ -90,8 +131,13 @@ namespace TileLayout.AutoCAD
                         return;
                     }
 
-                    layout = TileGridCalculator.Calculate(validation.Rectangle);
-                    ObjectId layoutLayerId = EnsureLayoutLayer(transaction, database);
+                    layout = parameters == null
+                        ? TileGridCalculator.Calculate(validation.Rectangle)
+                        : TileGridCalculator.Calculate(validation.Rectangle, parameters);
+                    ObjectId layoutLayerId = EnsureLayoutLayer(
+                        transaction,
+                        database,
+                        layoutLayerName);
                     WriteDivisionLines(
                         transaction,
                         modelSpaceId,
@@ -103,9 +149,21 @@ namespace TileLayout.AutoCAD
 
                 editor.WriteMessage(
                     "\n{0}",
-                    TileLayoutCommandText.FormatSuccess(layout, LayoutLayerName));
+                    parameters == null
+                        ? TileLayoutCommandText.FormatSuccess(
+                            layout,
+                            layoutLayerName)
+                        : TileLayoutCommandText.FormatParameterizedSuccess(
+                            layout,
+                            layoutLayerName));
                 editor.WriteMessage(
                     "\n原四条墙线未修改，插件未保存图纸；可用一次 U 或 UNDO 撤销本次新增。");
+            }
+            catch (TileLayoutLimitExceededException exception)
+            {
+                editor.WriteMessage(
+                    "\n{0}",
+                    TileLayoutCommandText.FormatLimitExceeded(exception));
             }
             catch (Autodesk.AutoCAD.Runtime.Exception exception)
             {
@@ -118,6 +176,151 @@ namespace TileLayout.AutoCAD
                 editor.WriteMessage(
                     "\n生成失败，事务已回滚，未保留部分分格线。请保留测试图并记录操作步骤。"
                 );
+            }
+        }
+
+        private static bool TryPromptTileLayoutParameters(
+            Editor editor,
+            out TileLayoutParameters parameters)
+        {
+            parameters = null;
+
+            double tileWidth;
+            if (!TryPromptTileDimension(
+                editor,
+                "砖宽",
+                "沿 WCS X",
+                TileLayoutRules.TileWidth,
+                out tileWidth))
+            {
+                return false;
+            }
+
+            double tileHeight;
+            if (!TryPromptTileDimension(
+                editor,
+                "砖高",
+                "沿 WCS Y",
+                TileLayoutRules.TileHeight,
+                out tileHeight))
+            {
+                return false;
+            }
+
+            TileLayoutStartCorner startCorner;
+            if (!TryPromptStartCorner(editor, out startCorner))
+            {
+                return false;
+            }
+
+            parameters = new TileLayoutParameters(
+                tileWidth,
+                tileHeight,
+                startCorner);
+            return true;
+        }
+
+        private static bool TryPromptStartCorner(
+            Editor editor,
+            out TileLayoutStartCorner startCorner)
+        {
+            var options = new PromptKeywordOptions(
+                "\n请选择起铺角（WCS：SW=西→东/南→北，SE=东→西/南→北，"
+                    + "NW=西→东/北→南，NE=东→西/北→南）[SW/SE/NW/NE] <SW>：")
+            {
+                AllowNone = true
+            };
+            options.Keywords.Add("SW");
+            options.Keywords.Add("SE");
+            options.Keywords.Add("NW");
+            options.Keywords.Add("NE");
+            options.Keywords.Default = "SW";
+
+            PromptResult result = editor.GetKeywords(options);
+            if (result.Status != PromptStatus.OK
+                && result.Status != PromptStatus.None)
+            {
+                startCorner = TileLayoutStartCorner.SouthWest;
+                return false;
+            }
+
+            string keyword = result.Status == PromptStatus.None
+                ? "SW"
+                : result.StringResult;
+            switch (keyword.ToUpperInvariant())
+            {
+                case "SW":
+                    startCorner = TileLayoutStartCorner.SouthWest;
+                    return true;
+                case "SE":
+                    startCorner = TileLayoutStartCorner.SouthEast;
+                    return true;
+                case "NW":
+                    startCorner = TileLayoutStartCorner.NorthWest;
+                    return true;
+                case "NE":
+                    startCorner = TileLayoutStartCorner.NorthEast;
+                    return true;
+                default:
+                    throw new InvalidOperationException(
+                        "AutoCAD returned an unsupported start-corner keyword.");
+            }
+        }
+
+        private static bool TryPromptTileDimension(
+            Editor editor,
+            string dimensionName,
+            string direction,
+            double defaultValue,
+            out double value)
+        {
+            var options = new PromptDoubleOptions(
+                string.Format(
+                    "\n请输入{0}（{1}，mm） <600>：",
+                    dimensionName,
+                    direction))
+            {
+                AllowNegative = true,
+                AllowNone = true,
+                AllowZero = true,
+                DefaultValue = defaultValue,
+                UseDefaultValue = true
+            };
+
+            while (true)
+            {
+                PromptDoubleResult result = editor.GetDouble(options);
+                if (result.Status != PromptStatus.OK
+                    && result.Status != PromptStatus.None)
+                {
+                    value = 0.0;
+                    return false;
+                }
+
+                value = result.Status == PromptStatus.None
+                    ? defaultValue
+                    : result.Value;
+                if (IsValidTileDimension(value))
+                {
+                    return true;
+                }
+
+                editor.WriteMessage(
+                    "\n{0}",
+                    TileLayoutCommandText.FormatParameterError(dimensionName));
+            }
+        }
+
+        private static bool IsValidTileDimension(double value)
+        {
+            try
+            {
+                new TileLayoutParameters(value, value);
+                return true;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                return false;
             }
         }
 
@@ -165,18 +368,19 @@ namespace TileLayout.AutoCAD
 
         private static ObjectId EnsureLayoutLayer(
             Transaction transaction,
-            Database database)
+            Database database,
+            string layerName)
         {
             LayerTable layerTable = (LayerTable)transaction.GetObject(
                 database.LayerTableId,
                 OpenMode.ForRead);
-            if (layerTable.Has(LayoutLayerName))
+            if (layerTable.Has(layerName))
             {
-                return layerTable[LayoutLayerName];
+                return layerTable[layerName];
             }
 
             layerTable.UpgradeOpen();
-            var layer = new LayerTableRecord { Name = LayoutLayerName };
+            var layer = new LayerTableRecord { Name = layerName };
             ObjectId layerId = layerTable.Add(layer);
             transaction.AddNewlyCreatedDBObject(layer, true);
             return layerId;

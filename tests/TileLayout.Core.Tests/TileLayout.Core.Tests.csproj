@@ -64,6 +64,7 @@
     <Compile Include="TestGeometry.cs" />
     <Compile Include="TileLayoutCommandTextTests.cs" />
     <Compile Include="TileGridCalculatorTests.cs" />
+    <Compile Include="TileLayoutParametersTests.cs" />
   </ItemGroup>
 
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

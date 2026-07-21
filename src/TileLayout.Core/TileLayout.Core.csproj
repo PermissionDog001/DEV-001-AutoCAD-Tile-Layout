@@ -47,8 +47,11 @@
     <Compile Include="RectangleValidationResult.cs" />
     <Compile Include="RectangleValidator.cs" />
     <Compile Include="TileGridCalculator.cs" />
+    <Compile Include="TileLayoutLimitExceededException.cs" />
+    <Compile Include="TileLayoutParameters.cs" />
     <Compile Include="TileLayoutResult.cs" />
     <Compile Include="TileLayoutRules.cs" />
+    <Compile Include="TileLayoutStartCorner.cs" />
   </ItemGroup>
 
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

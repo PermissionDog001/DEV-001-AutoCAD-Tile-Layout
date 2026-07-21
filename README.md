@@ -6,6 +6,10 @@ DEV-001 是一个面向 Autodesk AutoCAD 2021 的 C# Managed .NET 插件项目�
 
 M1 至 M5 均已完成。M4-01 至 M4-16 全部通过；M5 Release 重建和 27/27 自动测试通过，V0.1.0 最小包、说明和 SHA-256 已核验，AutoCAD 2021 发布包冒烟也已确认正式 DLL 加载成功、生成 23 条并可一次撤销。包中只有两个运行 DLL 和使用说明，未包含 Autodesk DLL、DWG、PDB、缓存或测试组件。未发现需要修改产品源码的可复现缺陷；V0.1.0 已发布到私有 GitHub Release，尚未公开发布。
 
+V0.2 范围已于 2026-07-20 冻结：新增 `TILELAYOUT`，支持用户按次输入方砖或矩形砖的宽、高；继续使用四条 WCS 轴对齐 `LINE`、西南角起铺、灰缝 0 和直接截断规则。M6 参数化核心、M7 AutoCAD 适配、M8 自动质量门和 M9 AutoCAD 2021 脱敏 DWG 实机验收均已完成；Debug/Release 自动测试各 51/51 通过，方砖/矩形砖、宽高方向、取消/错误、图层属性、重复追加、超限拒绝、一次撤销、原墙线保护和不自动保存均已形成证据，未发现可复现产品缺陷。M10 发布检查尚未执行，版本号和发布物未变。
+
+在 M9 工作树上启动的“工程起铺控制”阶段已完成：`TILELAYOUT` 在砖宽、砖高之后允许选择西南、东南、西北或东北起铺角，默认西南；切砖余量确定地落在所选角的对边。`TILE600` 继续固定西南角且无新增提示。Debug 56/56 自动测试、正式插件隔离编译和 AutoCAD 2021 脱敏副本最小实机验证均已通过。该阶段未启动 M10，未变更版本或发布物。
+
 ## V0.1 目标
 
 用户执行正式命令 `TILE600`，选择组成矩形房间的四条墙线。插件识别房间西南角，以 600 × 600 mm、灰缝 0 mm 的固定规则，从西向东、从南向北生成地砖分格线，并写入 `TILE_LAYOUT_600` 专用图层。
@@ -38,6 +42,14 @@ M1 至 M5 均已完成。M4-01 至 M4-16 全部通过；M5 Release 重建和 27/
 
 - 项目范围与里程碑：[PROJECT.md](PROJECT.md)
 - V0.1需求基线：[docs/requirements-v0.1.md](docs/requirements-v0.1.md)
+- V0.2 冻结需求：[docs/requirements-v0.2.md](docs/requirements-v0.2.md)
+- V0.2 技术方案与开发顺序：[docs/technical-plan-v0.2.md](docs/technical-plan-v0.2.md)
+- M6 参数化核心与安全计数验收：[docs/core-parameterization-m6.md](docs/core-parameterization-m6.md)
+- M7 `TILELAYOUT` AutoCAD 适配验收：[docs/autocad-adapter-m7.md](docs/autocad-adapter-m7.md)
+- M8 正式自动质量门验收：[docs/automated-quality-gate-m8.md](docs/automated-quality-gate-m8.md)
+- M9 AutoCAD 2021 脱敏 DWG 实机验收：[docs/dwg-acceptance-m9.md](docs/dwg-acceptance-m9.md)
+- 起铺控制功能基线与验收：[docs/start-control.md](docs/start-control.md)
+- 非矩形房间能力边界与依赖评估：[docs/non-rectangular-room-assessment.md](docs/non-rectangular-room-assessment.md)
 - 技术路线决策：[docs/adr/0001-autocad-2021-managed-net-plugin.md](docs/adr/0001-autocad-2021-managed-net-plugin.md)
 - M2 核心契约与验证记录：[docs/core-algorithm-m2.md](docs/core-algorithm-m2.md)
 - M3 正式集成与实机验收：[docs/autocad-integration-m3.md](docs/autocad-integration-m3.md)
@@ -146,3 +158,29 @@ M4 必须使用用户确认已经脱敏的真实图纸抽取副本，不在原�
 - 包内文件：`TileLayout.AutoCAD.dll`、`TileLayout.Core.dll`、`使用说明.md`
 
 2026-07-20，完整解决方案 Release 在 `build/solution-m5/Release` 备用目录重建通过，Release 自动测试 27/27 通过；两个程序集的 AssemblyVersion/FileVersion 均为 `0.1.0.0`。用户随后从交付包 `NETLOAD` 正式 DLL，在脱敏夹具执行一次 `TILE600`，确认加载成功、生成 23 条并可一次撤销。V0.1.0 已发布到私有仓库的 [GitHub Release](https://github.com/PermissionDog001/DEV-001-AutoCAD-Tile-Layout/releases/tag/v0.1.0)，包含 ZIP 和 SHA-256 清单；尚未公开发布。详见 [docs/release-v0.1.0.md](docs/release-v0.1.0.md)。
+
+## M7 TILELAYOUT AutoCAD 适配
+
+正式插件现已注册 `TILELAYOUT`。命令依次提示砖宽和砖高，每次默认均为 600 mm；宽沿 WCS X、高沿 WCS Y，非法尺寸可重新输入，取消任一参数会在边界选择前退出。取得合法参数后，新命令复用 `TILE600` 的模型空间、毫米单位、四条 `LINE` 只读快照、矩形验证、事务写回和回滚路径，并固定写入 `TILE_LAYOUT`。
+
+M7 只完成代码接入和宿主无关自动验证，当时没有操作 DWG 或宣称通过 AutoCAD 实机行为。参数提示、取消、既有图层属性、超限图层前拒绝、一次撤销和失败回滚的宿主证据随后已由 M9 补充。详细记录见 [docs/autocad-adapter-m7.md](docs/autocad-adapter-m7.md)。
+
+## M8 正式自动质量门
+
+M8 已逐项复核 `TILE600` 兼容、新命令参数/取消顺序、共享选择与事务路径、`TILE_LAYOUT` 图层复用、10,000 条图层前拒绝以及三类宿主无关消息。锁定模式恢复和 Debug/Release 各 51/51 自动测试通过；AutoCAD 2021 运行期间，完整解决方案在新的 `build/solution-m8` 备用目录完成双配置重建，未覆盖标准插件 DLL，输出未包含 Autodesk Managed DLL。
+
+核心和正式插件版本仍为 `0.1.0.0`，`dist` 中 V0.1.0 ZIP 哈希、既有本地标签及原始只读 DWG 哈希均保持基线。M8 没有操作 DWG、修改发布物或执行远端写入；当时留给 M9 的 AutoCAD 宿主行为随后已完成验收。详细记录见 [docs/automated-quality-gate-m8.md](docs/automated-quality-gate-m8.md)。
+
+## M9 AutoCAD 2021 脱敏 DWG 实机验收
+
+M9 已在 5600 × 8600 mm 脱敏工作副本中完成。`TILE600` 与 `TILELAYOUT 600×600` 均生成 23 条且分别写入各自图层；600 × 1200、1200 × 600、800 × 800 和 700 × 1200 的列行、余量、线数及代表坐标均符合预期。默认值、非法值重输、宽/高/选择取消、无效四线、11,199 条超限、既有锁定图层属性、重复追加、一次撤销、墙线保护和关闭不保存均通过。
+
+关闭不保存后，原始输入、只读夹具与 M9 工作副本仍为 31,890 字节，SHA-256 均为 `646A3A7A22CF40E5EC0B9CF8621A17AFAB09BB27928772C05D9CB3F4202DDA75`。未实机生成恰好 10,000 条，也未人为注入实体写入/提交异常；这些边界和原因已明确记录。详见 [docs/dwg-acceptance-m9.md](docs/dwg-acceptance-m9.md)。M10 尚未开始。
+
+## 工程起铺控制
+
+`TILELAYOUT` 当前交互冻结为“砖宽 → 砖高 → 起铺角 → 四条边界 `LINE`”。起铺角使用 WCS 方位，接受 `SW`、`SE`、`NW`、`NE`，默认 `SW`；选择哪一角，就从该角向房间内部沿两个方向起排，非整除切砖落在对边。成功消息报告起铺角、两个起排方向和实际余量边。
+
+核心四角坐标、顺序、余量落边、默认兼容、整除边界及既有资源上限已由 56/56 Debug 自动测试覆盖；正式 AutoCAD 项目也已隔离编译通过。AutoCAD 2021 最小实机进一步确认东北角生成 23 条、首条竖/横线坐标、角选择取消、`TILE600` 兼容、撤销和关闭不保存，未重复 M9 的全量矩阵。完整定义、样例和证据见 [docs/start-control.md](docs/start-control.md)。
+
+非矩形房间本轮仅完成评估，没有修改选择或几何实现。建议在起铺控制形成 Git 基线后，另开“单一、无洞、无自交的 WCS 正交闭合区域”里程碑；任意斜边、洞口和旋转网格继续拆开。详见 [docs/non-rectangular-room-assessment.md](docs/non-rectangular-room-assessment.md)。
