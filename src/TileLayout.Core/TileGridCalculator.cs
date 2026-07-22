@@ -39,8 +39,12 @@ namespace TileLayout.Core
                 throw new ArgumentNullException(nameof(parameters));
             }
 
-            SpanMetrics columns = GetSpanMetrics(room.Width, parameters.TileWidth);
-            SpanMetrics rows = GetSpanMetrics(room.Height, parameters.TileHeight);
+            TileSpanMetrics columns = TileSpanCalculator.Calculate(
+                room.Width,
+                parameters.TileWidth);
+            TileSpanMetrics rows = TileSpanCalculator.Calculate(
+                room.Height,
+                parameters.TileHeight);
             double estimatedDivisionLineCount =
                 columns.InternalLineCount + rows.InternalLineCount;
 
@@ -124,45 +128,5 @@ namespace TileLayout.Core
             }
         }
 
-        private static SpanMetrics GetSpanMetrics(double length, double tileSize)
-        {
-            double quotient = length / tileSize;
-            double nearestInteger = Math.Round(quotient);
-            bool isMultipleWithinTolerance =
-                !double.IsInfinity(quotient)
-                && Math.Abs(length - (nearestInteger * tileSize))
-                    <= GeometryTolerance.Coordinate;
-
-            double fullSpanCount = isMultipleWithinTolerance
-                ? nearestInteger
-                : Math.Floor(quotient);
-            double internalLineCount = isMultipleWithinTolerance
-                ? Math.Max(0.0, nearestInteger - 1.0)
-                : fullSpanCount;
-            double remainder = isMultipleWithinTolerance
-                ? 0.0
-                : length - (fullSpanCount * tileSize);
-
-            return new SpanMetrics(fullSpanCount, internalLineCount, remainder);
-        }
-
-        private struct SpanMetrics
-        {
-            public SpanMetrics(
-                double fullSpanCount,
-                double internalLineCount,
-                double remainder)
-            {
-                FullSpanCount = fullSpanCount;
-                InternalLineCount = internalLineCount;
-                Remainder = remainder;
-            }
-
-            public double FullSpanCount { get; }
-
-            public double InternalLineCount { get; }
-
-            public double Remainder { get; }
-        }
     }
 }

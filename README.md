@@ -10,6 +10,8 @@ V0.2 范围已于 2026-07-20 冻结：新增 `TILELAYOUT`，支持用户按次�
 
 在 M9 工作树上启动的“工程起铺控制”阶段已完成：`TILELAYOUT` 在砖宽、砖高之后允许选择西南、东南、西北或东北起铺角，默认西南；切砖余量确定地落在所选角的对边。`TILE600` 继续固定西南角且无新增提示。Debug 56/56 自动测试、正式插件隔离编译和 AutoCAD 2021 脱敏副本最小实机验证均已通过。该阶段未启动 M10，未变更版本或发布物。
 
+在 Git 基线 `6aa51d9` 上启动的“正交简单房间边界与裁切”已完成需求/接口冻结、核心算法、独立 `TILEORTHO` AutoCAD 适配、自动质量门、聚焦代码审查和 AutoCAD 2021 最小实机。新命令接受 4 条及以上同高程、WCS X/Y 轴对齐 `LINE` 组成的单一简单闭环，支持共线分段矩形和 L/U 形凹房间；网格锚点定义为区域 WCS 包围盒四角，候选线裁切为一个或多个室内片段。审查修复了大 WCS 坐标偏移下绝对坐标面积计算的消减问题；Debug/Release 81/81 自动测试和完整解决方案隔离重建通过。实机共线分段矩形、L 形凹角裁切、断口拒绝、一次撤销、原线保护和关闭不保存均通过。M10、版本和发布物保持不变。
+
 ## V0.1 目标
 
 用户执行正式命令 `TILE600`，选择组成矩形房间的四条墙线。插件识别房间西南角，以 600 × 600 mm、灰缝 0 mm 的固定规则，从西向东、从南向北生成地砖分格线，并写入 `TILE_LAYOUT_600` 专用图层。
@@ -22,12 +24,13 @@ V0.2 范围已于 2026-07-20 冻结：新增 `TILELAYOUT`，支持用户按次�
 - 模型空间
 - WCS 世界坐标
 - 与 WCS X/Y 轴平行的四线矩形房间
+- 独立 `TILEORTHO`：4 条及以上 WCS 正交 `LINE` 组成的单一、无洞、无自交简单房间
 - 图纸单位：毫米
 
 ## 暂不支持
 
 - 旋转矩形和自定义 UCS
-- 门洞、柱、地漏、墙垛、异形边界
+- 任意斜边、旋转网格、门洞、柱、地漏和多外环
 - 灰缝、居中、对称、窄砖优化和材料损耗优化
 - 多房间通缝、墙砖和独立 EXE
 
@@ -50,6 +53,7 @@ V0.2 范围已于 2026-07-20 冻结：新增 `TILELAYOUT`，支持用户按次�
 - M9 AutoCAD 2021 脱敏 DWG 实机验收：[docs/dwg-acceptance-m9.md](docs/dwg-acceptance-m9.md)
 - 起铺控制功能基线与验收：[docs/start-control.md](docs/start-control.md)
 - 非矩形房间能力边界与依赖评估：[docs/non-rectangular-room-assessment.md](docs/non-rectangular-room-assessment.md)
+- 正交简单房间需求、接口、自动验收和实机清单：[docs/orthogonal-simple-room.md](docs/orthogonal-simple-room.md)
 - 技术路线决策：[docs/adr/0001-autocad-2021-managed-net-plugin.md](docs/adr/0001-autocad-2021-managed-net-plugin.md)
 - M2 核心契约与验证记录：[docs/core-algorithm-m2.md](docs/core-algorithm-m2.md)
 - M3 正式集成与实机验收：[docs/autocad-integration-m3.md](docs/autocad-integration-m3.md)
@@ -183,4 +187,10 @@ M9 已在 5600 × 8600 mm 脱敏工作副本中完成。`TILE600` 与 `TILELAYOU
 
 核心四角坐标、顺序、余量落边、默认兼容、整除边界及既有资源上限已由 56/56 Debug 自动测试覆盖；正式 AutoCAD 项目也已隔离编译通过。AutoCAD 2021 最小实机进一步确认东北角生成 23 条、首条竖/横线坐标、角选择取消、`TILE600` 兼容、撤销和关闭不保存，未重复 M9 的全量矩阵。完整定义、样例和证据见 [docs/start-control.md](docs/start-control.md)。
 
-非矩形房间本轮仅完成评估，没有修改选择或几何实现。建议在起铺控制形成 Git 基线后，另开“单一、无洞、无自交的 WCS 正交闭合区域”里程碑；任意斜边、洞口和旋转网格继续拆开。详见 [docs/non-rectangular-room-assessment.md](docs/non-rectangular-room-assessment.md)。
+## 正交简单房间
+
+新增独立命令 `TILEORTHO`，交互为“砖宽 → 砖高 → WCS 包围盒网格锚点 `SW/SE/NW/NE` → 选择 4 条及以上 `LINE`”。锚点只定义网格相位，允许位于凹房间外；它不等同于必定位于房内的第一块砖角。输出固定写入 `TILE_LAYOUT_ORTHO`，单次最多 10,000 条最终室内片段。
+
+核心会以选择顺序无关的规则归并公差内端点、拒绝吸附歧义/断口/重叠/T 形/自交/分离环，并合并相邻共线碎段。裁切采用半开顶点规则和奇偶区间，支持一条候选网格线产生多个室内片段，同时扣除与房间边界重合的部分。`TILE600` 和 `TILELAYOUT` 保持既有四线矩形行为。
+
+自动实现、聚焦代码审查和 Debug/Release 81/81 测试已通过；审查新增了大 WCS 坐标偏移的面积稳定性回归。正式插件隔离输出为 `build/orthogonal-room/Debug/TileLayout.AutoCAD.dll`。AutoCAD 2021 最小实机也已确认共线分段矩形 9 条、L 形 4 条、断口拒绝、一次撤销、原线保护和不保存；完整步骤及证据见 [docs/orthogonal-simple-room.md](docs/orthogonal-simple-room.md)。任意斜边、洞口/柱、旋转网格和多房间通缝继续暂缓。

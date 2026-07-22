@@ -16,6 +16,7 @@ namespace TileLayout.AutoCAD
     {
         private const string FixedLayoutLayerName = "TILE_LAYOUT_600";
         private const string ParameterizedLayoutLayerName = "TILE_LAYOUT";
+        private const string OrthogonalLayoutLayerName = "TILE_LAYOUT_ORTHO";
 
         [CommandMethod("TILE600", CommandFlags.Modal)]
         public void CreateTileLayout()
@@ -55,6 +56,145 @@ namespace TileLayout.AutoCAD
                 "TILELAYOUT",
                 ParameterizedLayoutLayerName,
                 parameters);
+        }
+
+        [CommandMethod("TILEORTHO", CommandFlags.Modal)]
+        public void CreateOrthogonalTileLayout()
+        {
+            Document document = Application.DocumentManager.MdiActiveDocument;
+            if (document == null)
+            {
+                return;
+            }
+
+            TileLayoutParameters parameters;
+            if (!TryPromptOrthogonalTileLayoutParameters(
+                document.Editor,
+                out parameters))
+            {
+                document.Editor.WriteMessage(
+                    "\nTILEORTHO 已取消，未进入边界选择，未生成任何对象。");
+                return;
+            }
+
+            ExecuteOrthogonalLayout(document, parameters);
+        }
+
+        private static void ExecuteOrthogonalLayout(
+            Document document,
+            TileLayoutParameters parameters)
+        {
+            Database database = document.Database;
+            Editor editor = document.Editor;
+
+            if (!database.TileMode)
+            {
+                editor.WriteMessage(
+                    "\n请切换到模型空间后再执行 TILEORTHO。未生成任何对象。");
+                return;
+            }
+
+            if (database.Insunits != UnitsValue.Millimeters)
+            {
+                editor.WriteMessage(
+                    "\n当前图纸单位不是毫米（INSUNITS={0}），TILEORTHO 已停止。未生成任何对象。",
+                    database.Insunits);
+                return;
+            }
+
+            PromptSelectionResult selectionResult =
+                SelectOrthogonalBoundaryLines(editor);
+            if (selectionResult.Status != PromptStatus.OK)
+            {
+                editor.WriteMessage(
+                    "\n未完成正交房间边界 LINE 的选择，未生成任何对象。");
+                return;
+            }
+
+            ObjectId[] selectedIds = selectionResult.Value.GetObjectIds();
+            if (selectedIds.Length < 4)
+            {
+                editor.WriteMessage(
+                    "\n必须选择至少四条 LINE；本次选择了 {0} 条。未生成任何对象。",
+                    selectedIds.Length);
+                return;
+            }
+
+            try
+            {
+                OrthogonalTileLayoutResult layout;
+                using (Transaction transaction =
+                    database.TransactionManager.StartTransaction())
+                {
+                    BlockTable blockTable = (BlockTable)transaction.GetObject(
+                        database.BlockTableId,
+                        OpenMode.ForRead);
+                    ObjectId modelSpaceId = blockTable[BlockTableRecord.ModelSpace];
+                    IReadOnlyCollection<CoreLineSegment3D> boundaryLines =
+                        ReadBoundarySnapshots(
+                            transaction,
+                            selectedIds,
+                            modelSpaceId,
+                            editor);
+                    if (boundaryLines == null)
+                    {
+                        return;
+                    }
+
+                    OrthogonalRoomValidationResult validation =
+                        OrthogonalRoomValidator.Validate(boundaryLines);
+                    if (!validation.IsValid)
+                    {
+                        editor.WriteMessage(
+                            "\n{0}",
+                            TileLayoutCommandText.FormatOrthogonalValidationFailure(
+                                validation));
+                        return;
+                    }
+
+                    layout = OrthogonalTileGridCalculator.Calculate(
+                        validation.Room,
+                        parameters);
+                    ObjectId layoutLayerId = EnsureLayoutLayer(
+                        transaction,
+                        database,
+                        OrthogonalLayoutLayerName);
+                    WriteDivisionLines(
+                        transaction,
+                        modelSpaceId,
+                        layoutLayerId,
+                        layout.DivisionLines);
+                    transaction.Commit();
+                }
+
+                editor.WriteMessage(
+                    "\n{0}",
+                    TileLayoutCommandText.FormatOrthogonalSuccess(
+                        layout,
+                        OrthogonalLayoutLayerName));
+                editor.WriteMessage(
+                    "\n原边界 LINE 未修改，插件未保存图纸；可用一次 U 或 UNDO 撤销本次新增。");
+            }
+            catch (TileLayoutLimitExceededException exception)
+            {
+                editor.WriteMessage(
+                    "\n{0}",
+                    TileLayoutCommandText.FormatLimitExceeded(
+                        exception,
+                        "TILEORTHO"));
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception exception)
+            {
+                editor.WriteMessage(
+                    "\n生成失败（AutoCAD 状态：{0}），事务已回滚，未保留部分分格线。",
+                    exception.ErrorStatus);
+            }
+            catch (System.Exception)
+            {
+                editor.WriteMessage(
+                    "\n生成失败，事务已回滚，未保留部分分格线。请保留测试图并记录操作步骤。"
+                );
+            }
         }
 
         private static void ExecuteLayout(
@@ -220,6 +360,44 @@ namespace TileLayout.AutoCAD
             return true;
         }
 
+        private static bool TryPromptOrthogonalTileLayoutParameters(
+            Editor editor,
+            out TileLayoutParameters parameters)
+        {
+            parameters = null;
+
+            double tileWidth;
+            if (!TryPromptTileDimension(
+                editor,
+                "砖宽",
+                "沿 WCS X",
+                TileLayoutRules.TileWidth,
+                out tileWidth))
+            {
+                return false;
+            }
+
+            double tileHeight;
+            if (!TryPromptTileDimension(
+                editor,
+                "砖高",
+                "沿 WCS Y",
+                TileLayoutRules.TileHeight,
+                out tileHeight))
+            {
+                return false;
+            }
+
+            TileLayoutStartCorner anchor;
+            if (!TryPromptBoundingBoxAnchor(editor, out anchor))
+            {
+                return false;
+            }
+
+            parameters = new TileLayoutParameters(tileWidth, tileHeight, anchor);
+            return true;
+        }
+
         private static bool TryPromptStartCorner(
             Editor editor,
             out TileLayoutStartCorner startCorner)
@@ -264,6 +442,53 @@ namespace TileLayout.AutoCAD
                 default:
                     throw new InvalidOperationException(
                         "AutoCAD returned an unsupported start-corner keyword.");
+            }
+        }
+
+        private static bool TryPromptBoundingBoxAnchor(
+            Editor editor,
+            out TileLayoutStartCorner anchor)
+        {
+            var options = new PromptKeywordOptions(
+                "\n请选择 WCS 包围盒网格锚点（锚点可在房间外，只决定网格相位）"
+                    + "[SW/SE/NW/NE] <SW>：")
+            {
+                AllowNone = true
+            };
+            options.Keywords.Add("SW");
+            options.Keywords.Add("SE");
+            options.Keywords.Add("NW");
+            options.Keywords.Add("NE");
+            options.Keywords.Default = "SW";
+
+            PromptResult result = editor.GetKeywords(options);
+            if (result.Status != PromptStatus.OK
+                && result.Status != PromptStatus.None)
+            {
+                anchor = TileLayoutStartCorner.SouthWest;
+                return false;
+            }
+
+            string keyword = result.Status == PromptStatus.None
+                ? "SW"
+                : result.StringResult;
+            switch (keyword.ToUpperInvariant())
+            {
+                case "SW":
+                    anchor = TileLayoutStartCorner.SouthWest;
+                    return true;
+                case "SE":
+                    anchor = TileLayoutStartCorner.SouthEast;
+                    return true;
+                case "NW":
+                    anchor = TileLayoutStartCorner.NorthWest;
+                    return true;
+                case "NE":
+                    anchor = TileLayoutStartCorner.NorthEast;
+                    return true;
+                default:
+                    throw new InvalidOperationException(
+                        "AutoCAD returned an unsupported bounding-box anchor keyword.");
             }
         }
 
@@ -337,13 +562,28 @@ namespace TileLayout.AutoCAD
             return editor.GetSelection(options, filter);
         }
 
+        private static PromptSelectionResult SelectOrthogonalBoundaryLines(
+            Editor editor)
+        {
+            var options = new PromptSelectionOptions
+            {
+                MessageForAdding =
+                    "\n请选择组成单一 WCS 正交简单闭环的 4 条及以上模型空间 LINE：",
+                RejectObjectsFromNonCurrentSpace = true
+            };
+            var filter = new SelectionFilter(
+                new[] { new TypedValue((int)DxfCode.Start, "LINE") });
+
+            return editor.GetSelection(options, filter);
+        }
+
         private static IReadOnlyCollection<CoreLineSegment3D> ReadBoundarySnapshots(
             Transaction transaction,
             IEnumerable<ObjectId> selectedIds,
             ObjectId modelSpaceId,
             Editor editor)
         {
-            var snapshots = new List<CoreLineSegment3D>(4);
+            var snapshots = new List<CoreLineSegment3D>();
             foreach (ObjectId selectedId in selectedIds)
             {
                 Line line = transaction.GetObject(selectedId, OpenMode.ForRead) as Line;

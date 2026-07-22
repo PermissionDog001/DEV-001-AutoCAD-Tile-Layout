@@ -59,6 +59,8 @@
       <Link>AutoCADAdapter\TileLayoutCommandText.cs</Link>
     </Compile>
     <Compile Include="GeometryToleranceTests.cs" />
+    <Compile Include="OrthogonalRoomValidatorTests.cs" />
+    <Compile Include="OrthogonalTileGridCalculatorTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RectangleValidatorTests.cs" />
     <Compile Include="TestGeometry.cs" />

@@ -39,6 +39,7 @@
 
   <ItemGroup>
     <Compile Include="GeometryTolerance.cs" />
+    <Compile Include="Models\AxisAlignedOrthogonalPolygon.cs" />
     <Compile Include="Models\AxisAlignedRectangle.cs" />
     <Compile Include="Models\LineSegment3D.cs" />
     <Compile Include="Models\Point3D.cs" />
@@ -46,12 +47,18 @@
     <Compile Include="RectangleValidationError.cs" />
     <Compile Include="RectangleValidationResult.cs" />
     <Compile Include="RectangleValidator.cs" />
+    <Compile Include="OrthogonalRoomValidationError.cs" />
+    <Compile Include="OrthogonalRoomValidationResult.cs" />
+    <Compile Include="OrthogonalRoomValidator.cs" />
+    <Compile Include="OrthogonalTileGridCalculator.cs" />
+    <Compile Include="OrthogonalTileLayoutResult.cs" />
     <Compile Include="TileGridCalculator.cs" />
     <Compile Include="TileLayoutLimitExceededException.cs" />
     <Compile Include="TileLayoutParameters.cs" />
     <Compile Include="TileLayoutResult.cs" />
     <Compile Include="TileLayoutRules.cs" />
     <Compile Include="TileLayoutStartCorner.cs" />
+    <Compile Include="TileSpanCalculator.cs" />
   </ItemGroup>
 
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

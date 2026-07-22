@@ -60,6 +60,32 @@ namespace TileLayout.Core.Tests
         }
 
         [TestMethod]
+        public void FormatOrthogonalValidationFailure_TJunction_ReturnsReadableMessage()
+        {
+            var lines = OrthogonalRoomValidatorTests.LinesFromVertices(
+                new Point3D(0.0, 0.0),
+                new Point3D(1000.0, 0.0),
+                new Point3D(1000.0, 800.0),
+                new Point3D(0.0, 800.0))
+                .Concat(new[]
+                {
+                    new LineSegment3D(
+                        new Point3D(500.0, 0.0),
+                        new Point3D(500.0, 400.0))
+                })
+                .ToArray();
+            OrthogonalRoomValidationResult validation =
+                OrthogonalRoomValidator.Validate(lines);
+
+            string message =
+                TileLayoutCommandText.FormatOrthogonalValidationFailure(validation);
+
+            StringAssert.StartsWith(message, "正交房间验证失败：");
+            StringAssert.Contains(message, "自交、非相邻接触或端点落在另一条线内部");
+            StringAssert.EndsWith(message, "未生成任何对象。");
+        }
+
+        [TestMethod]
         public void FormatParameterizedSuccess_RectangularTile_ReportsAllRequiredValues()
         {
             RectangleValidationResult validation = RectangleValidator.Validate(
@@ -105,6 +131,35 @@ namespace TileLayout.Core.Tests
         }
 
         [TestMethod]
+        public void FormatOrthogonalSuccess_LRoom_ReportsBoundingBoxAndFinalFragments()
+        {
+            OrthogonalRoomValidationResult validation =
+                OrthogonalRoomValidator.Validate(
+                    OrthogonalRoomValidatorTests.LinesFromVertices(
+                        new Point3D(0.0, 0.0),
+                        new Point3D(1800.0, 0.0),
+                        new Point3D(1800.0, 600.0),
+                        new Point3D(600.0, 600.0),
+                        new Point3D(600.0, 1800.0),
+                        new Point3D(0.0, 1800.0)));
+            OrthogonalTileLayoutResult layout =
+                OrthogonalTileGridCalculator.Calculate(
+                    validation.Room,
+                    new TileLayoutParameters(600.0, 600.0));
+
+            string message = TileLayoutCommandText.FormatOrthogonalSuccess(
+                layout,
+                "TILE_LAYOUT_ORTHO");
+
+            Assert.AreEqual(
+                "正交房间排版完成：砖宽=600 mm，砖高=600 mm，包围盒网格锚点=西南，"
+                    + "网格方向=西→东/南→北，包围盒宽=1800 mm，高=1800 mm，"
+                    + "X/Y 完整模数=3/3，包围盒东侧余量=0 mm，北侧余量=0 mm；"
+                    + "已在图层 TILE_LAYOUT_ORTHO 生成 4 条最终室内分格片段。",
+                message);
+        }
+
+        [TestMethod]
         public void FormatParameterError_Width_ReturnsRetryGuidance()
         {
             Assert.AreEqual(
@@ -132,6 +187,27 @@ namespace TileLayout.Core.Tests
                 "本次预计生成 10001 条内部分格线，超过 TILELAYOUT 单次上限 10000 条。"
                     + "请增大砖规格或缩小房间范围；未生成任何对象。",
                 TileLayoutCommandText.FormatLimitExceeded(exception));
+        }
+
+        [TestMethod]
+        public void FormatLimitExceeded_OrthogonalCommand_ReportsFinalFragmentScope()
+        {
+            TileLayoutLimitExceededException exception = null;
+            try
+            {
+                TileGridCalculator.Calculate(
+                    new AxisAlignedRectangle(0.0, 10002.0, 0.0, 0.5),
+                    new TileLayoutParameters(1.0, 1.0));
+            }
+            catch (TileLayoutLimitExceededException caught)
+            {
+                exception = caught;
+            }
+
+            Assert.AreEqual(
+                "本次预计生成 10001 条内部分格线或室内片段，超过 TILEORTHO 单次上限 10000 条。"
+                    + "请增大砖规格或缩小房间范围；未生成任何对象。",
+                TileLayoutCommandText.FormatLimitExceeded(exception, "TILEORTHO"));
         }
     }
 }
