@@ -58,6 +58,7 @@
     <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\TileLayoutCommandText.cs">
       <Link>AutoCADAdapter\TileLayoutCommandText.cs</Link>
     </Compile>
+    <Compile Include="EngineeringRectangularLayoutCalculatorTests.cs" />
     <Compile Include="GeometryToleranceTests.cs" />
     <Compile Include="OrthogonalRoomValidatorTests.cs" />
     <Compile Include="OrthogonalTileGridCalculatorTests.cs" />

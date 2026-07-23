@@ -38,7 +38,21 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="AxisBoundaryBand.cs" />
+    <Compile Include="BoundaryBandKind.cs" />
+    <Compile Include="BoundaryBandPlan.cs" />
+    <Compile Include="CandidateDiagnostic.cs" />
+    <Compile Include="CandidateDiagnosticCode.cs" />
+    <Compile Include="CandidateDiagnosticSeverity.cs" />
+    <Compile Include="DoorOpening.cs" />
+    <Compile Include="DoorControlledAxisRole.cs" />
+    <Compile Include="EngineeringLayoutRules.cs" />
+    <Compile Include="EngineeringRectangularLayoutCalculator.cs" />
+    <Compile Include="EngineeringRectangularLayoutParameters.cs" />
+    <Compile Include="EngineeringRectangularLayoutResult.cs" />
     <Compile Include="GeometryTolerance.cs" />
+    <Compile Include="LayoutCandidate.cs" />
+    <Compile Include="LayoutCandidateMetrics.cs" />
     <Compile Include="Models\AxisAlignedOrthogonalPolygon.cs" />
     <Compile Include="Models\AxisAlignedRectangle.cs" />
     <Compile Include="Models\LineSegment3D.cs" />
@@ -53,12 +67,16 @@
     <Compile Include="OrthogonalTileGridCalculator.cs" />
     <Compile Include="OrthogonalTileLayoutResult.cs" />
     <Compile Include="TileGridCalculator.cs" />
+    <Compile Include="TileClassification.cs" />
+    <Compile Include="TileFootprint.cs" />
+    <Compile Include="TileLayoutAxis.cs" />
     <Compile Include="TileLayoutLimitExceededException.cs" />
     <Compile Include="TileLayoutParameters.cs" />
     <Compile Include="TileLayoutResult.cs" />
     <Compile Include="TileLayoutRules.cs" />
     <Compile Include="TileLayoutStartCorner.cs" />
     <Compile Include="TileSpanCalculator.cs" />
+    <Compile Include="RoomSide.cs" />
   </ItemGroup>
 
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
