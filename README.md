@@ -12,6 +12,10 @@ V0.2 范围已于 2026-07-20 冻结：新增 `TILELAYOUT`，支持用户按次�
 
 在 Git 基线 `6aa51d9` 上启动的“正交简单房间边界与裁切”已完成需求/接口冻结、核心算法、独立 `TILEORTHO` AutoCAD 适配、自动质量门、聚焦代码审查和 AutoCAD 2021 最小实机。新命令接受 4 条及以上同高程、WCS X/Y 轴对齐 `LINE` 组成的单一简单闭环，支持共线分段矩形和 L/U 形凹房间；网格锚点定义为区域 WCS 包围盒四角，候选线裁切为一个或多个室内片段。审查修复了大 WCS 坐标偏移下绝对坐标面积计算的消减问题；Debug/Release 81/81 自动测试和完整解决方案隔离重建通过。实机共线分段矩形、L 形凹角裁切、断口拒绝、一次撤销、原线保护和关闭不保存均通过。M10、版本和发布物保持不变。
 
+门洞控制的正交矩形工程排版规则已完成 DR1 冻结：门洞按整个洞口作为控制条件，切砖绝对下限为对应砖边的 `0.42` 倍；自然窄余量改为“半砖 + 中间整砖 + 较大过渡砖”，再按门洞法向和沿墙位置分配到两条对边。两个已确认人工样例、核心数据模型、确定性算法和 AutoCAD“两点确认 + 预览/翻转”的交互计划已记录；代码尚未开始，现有三个命令行为不变。
+
+门洞控制的正交异形房间已完成第一轮规则发现：L-01、L-03、L-04 A～E、L-05和多凹凸P-01样例确认了整房单一相位与主次区组合两类候选、独立窄带与连续异形砖的区别、突出带优先吸收、中央整砖与临墙非整砖原则，以及墙砖对缝只作为有上限的整体美观因素。第二绝对下限的准确数值、综合美观指标和墙砖缝DWG图元语义尚未冻结，因此下一编码任务建议先实现DR1矩形核心和DR2可复用候选模型，不直接实现最终异形自动择优或AutoCAD交互，也不启动M10。
+
 ## V0.1 目标
 
 用户执行正式命令 `TILE600`，选择组成矩形房间的四条墙线。插件识别房间西南角，以 600 × 600 mm、灰缝 0 mm 的固定规则，从西向东、从南向北生成地砖分格线，并写入 `TILE_LAYOUT_600` 专用图层。
@@ -54,6 +58,8 @@ V0.2 范围已于 2026-07-20 冻结：新增 `TILELAYOUT`，支持用户按次�
 - 起铺控制功能基线与验收：[docs/start-control.md](docs/start-control.md)
 - 非矩形房间能力边界与依赖评估：[docs/non-rectangular-room-assessment.md](docs/non-rectangular-room-assessment.md)
 - 正交简单房间需求、接口、自动验收和实机清单：[docs/orthogonal-simple-room.md](docs/orthogonal-simple-room.md)
+- 门洞控制的正交矩形工程排版规则与开发计划：[docs/door-controlled-rectangular-layout.md](docs/door-controlled-rectangular-layout.md)
+- 门洞控制的正交异形房间样例、规则发现和DR2前置条件：[docs/door-controlled-orthogonal-layout.md](docs/door-controlled-orthogonal-layout.md)
 - 技术路线决策：[docs/adr/0001-autocad-2021-managed-net-plugin.md](docs/adr/0001-autocad-2021-managed-net-plugin.md)
 - M2 核心契约与验证记录：[docs/core-algorithm-m2.md](docs/core-algorithm-m2.md)
 - M3 正式集成与实机验收：[docs/autocad-integration-m3.md](docs/autocad-integration-m3.md)
