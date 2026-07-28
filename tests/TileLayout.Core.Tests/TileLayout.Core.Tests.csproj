@@ -55,9 +55,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\DoorLayoutPreviewSession.cs">
+      <Link>AutoCADAdapter\DoorLayoutPreviewSession.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\DoorOpeningPointAdapter.cs">
+      <Link>AutoCADAdapter\DoorOpeningPointAdapter.cs</Link>
+    </Compile>
     <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\TileLayoutCommandText.cs">
       <Link>AutoCADAdapter\TileLayoutCommandText.cs</Link>
     </Compile>
+    <Compile Include="DoorLayoutPreviewSessionTests.cs" />
+    <Compile Include="DoorOpeningPointAdapterTests.cs" />
     <Compile Include="EngineeringRectangularLayoutCalculatorTests.cs" />
     <Compile Include="GeometryToleranceTests.cs" />
     <Compile Include="OrthogonalRoomValidatorTests.cs" />

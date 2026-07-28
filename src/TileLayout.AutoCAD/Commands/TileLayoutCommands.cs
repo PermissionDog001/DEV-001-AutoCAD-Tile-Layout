@@ -17,6 +17,8 @@ namespace TileLayout.AutoCAD
         private const string FixedLayoutLayerName = "TILE_LAYOUT_600";
         private const string ParameterizedLayoutLayerName = "TILE_LAYOUT";
         private const string OrthogonalLayoutLayerName = "TILE_LAYOUT_ORTHO";
+        private const string DoorRectangularLayoutLayerName =
+            "TILE_LAYOUT_DOOR_RECT";
 
         [CommandMethod("TILE600", CommandFlags.Modal)]
         public void CreateTileLayout()
@@ -78,6 +80,209 @@ namespace TileLayout.AutoCAD
             }
 
             ExecuteOrthogonalLayout(document, parameters);
+        }
+
+        [CommandMethod("TILEDOORRECT", CommandFlags.Modal)]
+        public void CreateDoorControlledRectangularLayout()
+        {
+            Document document = Application.DocumentManager.MdiActiveDocument;
+            if (document == null)
+            {
+                return;
+            }
+
+            ExecuteDoorControlledRectangularLayout(document);
+        }
+
+        private static void ExecuteDoorControlledRectangularLayout(
+            Document document)
+        {
+            Database database = document.Database;
+            Editor editor = document.Editor;
+
+            if (!database.TileMode)
+            {
+                editor.WriteMessage(
+                    "\n请切换到模型空间后再执行 TILEDOORRECT。未生成任何对象。");
+                return;
+            }
+
+            if (database.Insunits != UnitsValue.Millimeters)
+            {
+                editor.WriteMessage(
+                    "\n当前图纸单位不是毫米（INSUNITS={0}），"
+                        + "TILEDOORRECT 已停止。未生成任何对象。",
+                    database.Insunits);
+                return;
+            }
+
+            PromptSelectionResult selectionResult = SelectBoundaryLines(editor);
+            if (selectionResult.Status != PromptStatus.OK)
+            {
+                editor.WriteMessage(
+                    "\n未完成四条矩形房间 LINE 的选择，未生成任何对象。");
+                return;
+            }
+
+            ObjectId[] selectedIds = selectionResult.Value.GetObjectIds();
+            if (selectedIds.Length != 4)
+            {
+                editor.WriteMessage(
+                    "\n必须且只能选择四条 LINE；本次选择了 {0} 条。未生成任何对象。",
+                    selectedIds.Length);
+                return;
+            }
+
+            TileLayout.Core.Models.AxisAlignedRectangle room;
+            if (!TryReadValidatedRectangle(
+                database,
+                selectedIds,
+                editor,
+                out room))
+            {
+                return;
+            }
+
+            double tileWidth;
+            double tileHeight;
+            if (!TryPromptEngineeringTileDimensions(
+                editor,
+                out tileWidth,
+                out tileHeight))
+            {
+                editor.WriteMessage(
+                    "\nTILEDOORRECT 已取消；原边界未修改，未生成任何对象。");
+                return;
+            }
+
+            while (true)
+            {
+                DoorOpeningProjectionResult projection;
+                if (!TryPromptDoorOpening(editor, room, out projection))
+                {
+                    ClearDoorLayoutPreview(editor);
+                    editor.WriteMessage(
+                        "\nTILEDOORRECT 已取消；原边界和门洞输入未修改，"
+                            + "未生成任何对象。");
+                    return;
+                }
+
+                if (!projection.IsValid)
+                {
+                    editor.WriteMessage(
+                        "\n{0}",
+                        TileLayoutCommandText.FormatDoorProjectionFailure(
+                            projection));
+                    continue;
+                }
+
+                EngineeringRectangularLayoutResult layout;
+                try
+                {
+                    layout = EngineeringRectangularLayoutCalculator.Calculate(
+                        room,
+                        new EngineeringRectangularLayoutParameters(
+                            tileWidth,
+                            tileHeight,
+                            projection.Opening));
+                }
+                catch (TileLayoutLimitExceededException exception)
+                {
+                    editor.WriteMessage(
+                        "\n{0}",
+                        TileLayoutCommandText.FormatLimitExceeded(
+                            exception,
+                            "TILEDOORRECT"));
+                    return;
+                }
+                catch (ArgumentException exception)
+                {
+                    editor.WriteMessage(
+                        "\n门洞控制计算失败：{0} 未生成任何对象。",
+                        exception.Message);
+                    return;
+                }
+
+                editor.WriteMessage(
+                    "\n{0}",
+                    TileLayoutCommandText.FormatDoorOpeningSummary(
+                        room,
+                        projection.Opening));
+
+                if (!layout.IsSuccessful)
+                {
+                    editor.WriteMessage(
+                        "\n{0}",
+                        TileLayoutCommandText.FormatEngineeringFailure(layout));
+                    if (PromptFailedCandidateAction(editor)
+                        == DoorLayoutInteractionAction.Reselect)
+                    {
+                        continue;
+                    }
+
+                    editor.WriteMessage(
+                        "\nTILEDOORRECT 已取消，未生成任何对象。");
+                    return;
+                }
+
+                var previewSession = new DoorLayoutPreviewSession(layout);
+                bool reselect = false;
+                while (previewSession.State
+                    == DoorLayoutInteractionState.Previewing)
+                {
+                    editor.WriteMessage(
+                        "\n{0}",
+                        TileLayoutCommandText.FormatEngineeringCandidateSummary(
+                            previewSession.SelectedCandidate));
+                    DrawDoorLayoutPreview(
+                        editor,
+                        previewSession.SelectedCandidate,
+                        projection);
+
+                    DoorLayoutInteractionAction action;
+                    if (!TryPromptDoorPreviewAction(editor, out action))
+                    {
+                        action = DoorLayoutInteractionAction.Cancel;
+                    }
+
+                    ClearDoorLayoutPreview(editor);
+                    if (action == DoorLayoutInteractionAction.Flip
+                        && !previewSession.CanFlip)
+                    {
+                        editor.WriteMessage(
+                            "\n当前结果没有 DR2 提供的居中等价候选，"
+                                + "只能对居中门洞的等价版式执行翻转。");
+                        continue;
+                    }
+
+                    previewSession.Apply(action);
+                    if (previewSession.State
+                        == DoorLayoutInteractionState.ReselectRequested)
+                    {
+                        reselect = true;
+                    }
+                }
+
+                if (reselect)
+                {
+                    editor.WriteMessage(
+                        "\n请重新选择门洞两个端点；房间边界和砖规格保持不变。");
+                    continue;
+                }
+
+                if (previewSession.State
+                    == DoorLayoutInteractionState.Cancelled)
+                {
+                    editor.WriteMessage(
+                        "\nTILEDOORRECT 已取消；接受前未创建或修改正式图层及实体。");
+                    return;
+                }
+
+                WriteAcceptedDoorLayout(
+                    document,
+                    previewSession.SelectedCandidate);
+                return;
+            }
         }
 
         private static void ExecuteOrthogonalLayout(
@@ -316,6 +521,290 @@ namespace TileLayout.AutoCAD
                 editor.WriteMessage(
                     "\n生成失败，事务已回滚，未保留部分分格线。请保留测试图并记录操作步骤。"
                 );
+            }
+        }
+
+        private static bool TryReadValidatedRectangle(
+            Database database,
+            ObjectId[] selectedIds,
+            Editor editor,
+            out TileLayout.Core.Models.AxisAlignedRectangle room)
+        {
+            room = null;
+            using (Transaction transaction =
+                database.TransactionManager.StartTransaction())
+            {
+                BlockTable blockTable = (BlockTable)transaction.GetObject(
+                    database.BlockTableId,
+                    OpenMode.ForRead);
+                ObjectId modelSpaceId = blockTable[BlockTableRecord.ModelSpace];
+                IReadOnlyCollection<CoreLineSegment3D> boundaryLines =
+                    ReadBoundarySnapshots(
+                        transaction,
+                        selectedIds,
+                        modelSpaceId,
+                        editor);
+                if (boundaryLines == null)
+                {
+                    return false;
+                }
+
+                RectangleValidationResult validation =
+                    RectangleValidator.Validate(boundaryLines);
+                if (!validation.IsValid)
+                {
+                    editor.WriteMessage(
+                        "\n{0}",
+                        TileLayoutCommandText.FormatValidationFailure(validation));
+                    return false;
+                }
+
+                room = validation.Rectangle;
+                return true;
+            }
+        }
+
+        private static bool TryPromptEngineeringTileDimensions(
+            Editor editor,
+            out double tileWidth,
+            out double tileHeight)
+        {
+            tileWidth = 0.0;
+            tileHeight = 0.0;
+            if (!TryPromptTileDimension(
+                editor,
+                "砖宽",
+                "沿 WCS X",
+                TileLayoutRules.TileWidth,
+                out tileWidth))
+            {
+                return false;
+            }
+
+            return TryPromptTileDimension(
+                editor,
+                "砖高",
+                "沿 WCS Y",
+                TileLayoutRules.TileHeight,
+                out tileHeight);
+        }
+
+        private static bool TryPromptDoorOpening(
+            Editor editor,
+            TileLayout.Core.Models.AxisAlignedRectangle room,
+            out DoorOpeningProjectionResult projection)
+        {
+            projection = null;
+            var firstOptions = new PromptPointOptions(
+                "\n请选择门洞第一个边缘点（WCS，需在矩形墙段公差内）：")
+            {
+                AllowNone = false
+            };
+            PromptPointResult firstResult = editor.GetPoint(firstOptions);
+            if (firstResult.Status != PromptStatus.OK)
+            {
+                return false;
+            }
+
+            var secondOptions = new PromptPointOptions(
+                "\n请选择门洞第二个边缘点（必须与第一点位于同一面墙）：")
+            {
+                AllowNone = false,
+                BasePoint = firstResult.Value,
+                UseBasePoint = true,
+                UseDashedLine = true
+            };
+            PromptPointResult secondResult = editor.GetPoint(secondOptions);
+            if (secondResult.Status != PromptStatus.OK)
+            {
+                return false;
+            }
+
+            Point3d first = firstResult.Value;
+            Point3d second = secondResult.Value;
+            projection = DoorOpeningPointAdapter.ProjectToRoomWall(
+                room,
+                new CorePoint3D(first.X, first.Y, first.Z),
+                new CorePoint3D(second.X, second.Y, second.Z));
+            return true;
+        }
+
+        private static bool TryPromptDoorPreviewAction(
+            Editor editor,
+            out DoorLayoutInteractionAction action)
+        {
+            var options = new PromptKeywordOptions(
+                "\n预览操作 [接受(A)/翻转(F)/重选(R)/取消(C)] <接受>：")
+            {
+                AllowNone = true
+            };
+            options.Keywords.Add("A");
+            options.Keywords.Add("F");
+            options.Keywords.Add("R");
+            options.Keywords.Add("C");
+            options.Keywords.Default = "A";
+
+            PromptResult result = editor.GetKeywords(options);
+            if (result.Status != PromptStatus.OK
+                && result.Status != PromptStatus.None)
+            {
+                action = DoorLayoutInteractionAction.Cancel;
+                return false;
+            }
+
+            string keyword = result.Status == PromptStatus.None
+                ? "A"
+                : result.StringResult;
+            switch (keyword.ToUpperInvariant())
+            {
+                case "A":
+                    action = DoorLayoutInteractionAction.Accept;
+                    return true;
+                case "F":
+                    action = DoorLayoutInteractionAction.Flip;
+                    return true;
+                case "R":
+                    action = DoorLayoutInteractionAction.Reselect;
+                    return true;
+                case "C":
+                    action = DoorLayoutInteractionAction.Cancel;
+                    return true;
+                default:
+                    throw new InvalidOperationException(
+                        "AutoCAD returned an unsupported door-preview keyword.");
+            }
+        }
+
+        private static DoorLayoutInteractionAction PromptFailedCandidateAction(
+            Editor editor)
+        {
+            var options = new PromptKeywordOptions(
+                "\n当前门洞没有可预览候选 [重选(R)/取消(C)] <重选>：")
+            {
+                AllowNone = true
+            };
+            options.Keywords.Add("R");
+            options.Keywords.Add("C");
+            options.Keywords.Default = "R";
+
+            PromptResult result = editor.GetKeywords(options);
+            if (result.Status != PromptStatus.OK
+                && result.Status != PromptStatus.None)
+            {
+                return DoorLayoutInteractionAction.Cancel;
+            }
+
+            string keyword = result.Status == PromptStatus.None
+                ? "R"
+                : result.StringResult;
+            return string.Equals(
+                keyword,
+                "R",
+                StringComparison.OrdinalIgnoreCase)
+                ? DoorLayoutInteractionAction.Reselect
+                : DoorLayoutInteractionAction.Cancel;
+        }
+
+        private static void DrawDoorLayoutPreview(
+            Editor editor,
+            LayoutCandidate candidate,
+            DoorOpeningProjectionResult projection)
+        {
+            ClearDoorLayoutPreview(editor);
+            foreach (CoreLineSegment3D divisionLine in candidate.DivisionLines)
+            {
+                editor.DrawVector(
+                    new Point3d(
+                        divisionLine.Start.X,
+                        divisionLine.Start.Y,
+                        divisionLine.Start.Z),
+                    new Point3d(
+                        divisionLine.End.X,
+                        divisionLine.End.Y,
+                        divisionLine.End.Z),
+                    3,
+                    false);
+            }
+
+            editor.DrawVector(
+                new Point3d(
+                    projection.FirstProjectedPoint.X,
+                    projection.FirstProjectedPoint.Y,
+                    projection.FirstProjectedPoint.Z),
+                new Point3d(
+                    projection.SecondProjectedPoint.X,
+                    projection.SecondProjectedPoint.Y,
+                    projection.SecondProjectedPoint.Z),
+                2,
+                true);
+        }
+
+        private static void ClearDoorLayoutPreview(Editor editor)
+        {
+            editor.Regen();
+        }
+
+        private static void WriteAcceptedDoorLayout(
+            Document document,
+            LayoutCandidate candidate)
+        {
+            Editor editor = document.Editor;
+            Database database = document.Database;
+            int maximum = TileLayoutRules.MaximumParameterizedDivisionLineCount;
+            if (candidate.DivisionLines.Count > maximum)
+            {
+                editor.WriteMessage(
+                    "\n接受的候选包含 {0} 条内部分格线，超过 TILEDOORRECT "
+                        + "单次上限 {1} 条；未创建或修改输出图层。",
+                    candidate.DivisionLines.Count,
+                    maximum);
+                return;
+            }
+
+            try
+            {
+                using (Transaction transaction =
+                    database.TransactionManager.StartTransaction())
+                {
+                    BlockTable blockTable =
+                        (BlockTable)transaction.GetObject(
+                            database.BlockTableId,
+                            OpenMode.ForRead);
+                    ObjectId modelSpaceId =
+                        blockTable[BlockTableRecord.ModelSpace];
+                    ObjectId layoutLayerId = EnsureLayoutLayer(
+                        transaction,
+                        database,
+                        DoorRectangularLayoutLayerName);
+                    WriteDivisionLines(
+                        transaction,
+                        modelSpaceId,
+                        layoutLayerId,
+                        candidate.DivisionLines);
+                    transaction.Commit();
+                }
+
+                editor.WriteMessage(
+                    "\n{0}",
+                    TileLayoutCommandText.FormatEngineeringWriteSuccess(
+                        candidate,
+                        DoorRectangularLayoutLayerName));
+                editor.WriteMessage(
+                    "\n原四条边界 LINE 未修改，插件未保存图纸；"
+                        + "可用一次 U 或 UNDO 撤销本次接受后新增。");
+            }
+            catch (Autodesk.AutoCAD.Runtime.Exception exception)
+            {
+                editor.WriteMessage(
+                    "\n生成失败（AutoCAD 状态：{0}），"
+                        + "单个写事务已回滚，未保留部分分格线。",
+                    exception.ErrorStatus);
+            }
+            catch (System.Exception)
+            {
+                editor.WriteMessage(
+                    "\n生成失败，单个写事务已回滚，未保留部分分格线。"
+                        + "请保留测试副本并记录操作步骤。");
             }
         }
 

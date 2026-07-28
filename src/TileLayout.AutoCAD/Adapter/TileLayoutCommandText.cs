@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
 using TileLayout.Core;
+using TileLayout.Core.Models;
 
 namespace TileLayout.AutoCAD.Adapter
 {
@@ -131,6 +134,173 @@ namespace TileLayout.AutoCAD.Adapter
                 layout.DivisionLines.Count);
         }
 
+        public static string FormatDoorProjectionFailure(
+            DoorOpeningProjectionResult projection)
+        {
+            if (projection == null)
+            {
+                throw new ArgumentNullException(nameof(projection));
+            }
+
+            if (projection.IsValid)
+            {
+                throw new ArgumentException(
+                    "A successful door projection cannot be formatted as a failure.",
+                    nameof(projection));
+            }
+
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "门洞两点无效：{0} 请重新选择；未生成任何对象。",
+                projection.ErrorMessage);
+        }
+
+        public static string FormatDoorOpeningSummary(
+            AxisAlignedRectangle room,
+            DoorOpening opening)
+        {
+            if (room == null)
+            {
+                throw new ArgumentNullException(nameof(room));
+            }
+
+            if (opening == null)
+            {
+                throw new ArgumentNullException(nameof(opening));
+            }
+
+            double lowDistance = opening.GetDistanceToLowWallEnd(room);
+            double highDistance = opening.GetDistanceToHighWallEnd(room);
+            string lowDirection;
+            string highDirection;
+            string entryDirection;
+            GetDoorDirections(
+                opening.Wall,
+                out lowDirection,
+                out highDirection,
+                out entryDirection);
+            string bias = GeometryTolerance.NearlyEqual(
+                lowDistance,
+                highDistance)
+                ? "居中"
+                : string.Format(
+                    CultureInfo.InvariantCulture,
+                    "偏{0}",
+                    lowDistance < highDistance
+                        ? lowDirection
+                        : highDirection);
+
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "门洞识别：{0}，洞宽={1} mm，{2}，进门方向={3}，"
+                    + "到{4}/{5}端净距={6}/{7} mm。",
+                FormatRoomSide(opening.Wall),
+                FormatNumber(opening.Width),
+                bias,
+                entryDirection,
+                lowDirection,
+                highDirection,
+                FormatNumber(lowDistance),
+                FormatNumber(highDistance));
+        }
+
+        public static string FormatEngineeringCandidateSummary(
+            LayoutCandidate candidate)
+        {
+            if (candidate == null)
+            {
+                throw new ArgumentNullException(nameof(candidate));
+            }
+
+            if (candidate.IsRejected)
+            {
+                throw new ArgumentException(
+                    "A rejected candidate cannot be formatted as a preview.",
+                    nameof(candidate));
+            }
+
+            BoundaryBandPlan xPlan =
+                candidate.GetAxisPlan(TileLayoutAxis.X);
+            BoundaryBandPlan yPlan =
+                candidate.GetAxisPlan(TileLayoutAxis.Y);
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "候选摘要：{0}；X向={1}，Y向={2}；"
+                    + "西/东/南/北边砖={3}/{4}/{5}/{6} mm；"
+                    + "施工起铺方向=X {7}、Y {8}；诊断：{9}。",
+                candidate.IsFlippedAlternative ? "居中等价翻转" : "默认候选",
+                FormatAxisPlan(xPlan),
+                FormatAxisPlan(yPlan),
+                FormatNumber(xPlan.GetBoundary(RoomSide.West).Width),
+                FormatNumber(xPlan.GetBoundary(RoomSide.East).Width),
+                FormatNumber(yPlan.GetBoundary(RoomSide.South).Width),
+                FormatNumber(yPlan.GetBoundary(RoomSide.North).Width),
+                FormatConstructionDirection(xPlan),
+                FormatConstructionDirection(yPlan),
+                FormatDiagnostics(candidate.Diagnostics));
+        }
+
+        public static string FormatEngineeringFailure(
+            EngineeringRectangularLayoutResult layout)
+        {
+            if (layout == null)
+            {
+                throw new ArgumentNullException(nameof(layout));
+            }
+
+            if (layout.IsSuccessful)
+            {
+                throw new ArgumentException(
+                    "A successful engineering layout cannot be formatted as a failure.",
+                    nameof(layout));
+            }
+
+            var diagnostics = new List<CandidateDiagnostic>();
+            foreach (LayoutCandidate candidate in layout.EliminatedCandidates)
+            {
+                foreach (CandidateDiagnostic diagnostic in candidate.Diagnostics)
+                {
+                    diagnostics.Add(diagnostic);
+                }
+            }
+
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "没有可接受的门洞控制候选：{0}。未生成任何对象。",
+                FormatDiagnostics(diagnostics));
+        }
+
+        public static string FormatEngineeringWriteSuccess(
+            LayoutCandidate candidate,
+            string layerName)
+        {
+            if (candidate == null)
+            {
+                throw new ArgumentNullException(nameof(candidate));
+            }
+
+            if (candidate.IsRejected)
+            {
+                throw new ArgumentException(
+                    "A rejected candidate cannot be written.",
+                    nameof(candidate));
+            }
+
+            if (string.IsNullOrWhiteSpace(layerName))
+            {
+                throw new ArgumentException(
+                    "Layer name is required.",
+                    nameof(layerName));
+            }
+
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "门洞控制排版已接受：{0}；已在图层 {1} 生成 {2} 条内部分格线。",
+                candidate.IsFlippedAlternative ? "居中等价翻转候选" : "默认候选",
+                layerName,
+                candidate.DivisionLines.Count);
+        }
+
         public static string FormatParameterError(string dimensionName)
         {
             if (string.IsNullOrWhiteSpace(dimensionName))
@@ -233,6 +403,157 @@ namespace TileLayout.AutoCAD.Adapter
                     return "东北";
                 default:
                     throw new ArgumentOutOfRangeException(nameof(startCorner));
+            }
+        }
+
+        private static string FormatAxisPlan(BoundaryBandPlan plan)
+        {
+            if (plan.UsesRedistribution)
+            {
+                return "半砖/过渡砖重分配";
+            }
+
+            return plan.NaturalRemainder <= GeometryTolerance.Coordinate
+                ? "整除"
+                : "整砖+合法自然余量";
+        }
+
+        private static string FormatConstructionDirection(
+            BoundaryBandPlan plan)
+        {
+            if (plan.Axis == TileLayoutAxis.X)
+            {
+                return plan.ConstructionStartSide == RoomSide.East
+                    ? "东→西"
+                    : "西→东";
+            }
+
+            return plan.ConstructionStartSide == RoomSide.North
+                ? "北→南"
+                : "南→北";
+        }
+
+        private static string FormatDiagnostics(
+            IEnumerable<CandidateDiagnostic> diagnostics)
+        {
+            var builder = new StringBuilder();
+            foreach (CandidateDiagnostic diagnostic in diagnostics)
+            {
+                if (builder.Length > 0)
+                {
+                    builder.Append("；");
+                }
+
+                builder.Append(FormatDiagnostic(diagnostic));
+            }
+
+            return builder.Length == 0 ? "无" : builder.ToString();
+        }
+
+        private static string FormatDiagnostic(CandidateDiagnostic diagnostic)
+        {
+            string axis = diagnostic.Axis.HasValue
+                ? FormatAxis(diagnostic.Axis.Value) + "向"
+                : string.Empty;
+            switch (diagnostic.Code)
+            {
+                case CandidateDiagnosticCode.ExactTileMultiple:
+                    return axis + "尺寸整除";
+                case CandidateDiagnosticCode.NaturalRemainderAccepted:
+                    return string.Format(
+                        CultureInfo.InvariantCulture,
+                        "{0}自然余量 {1} mm 不小于下限 {2} mm",
+                        axis,
+                        FormatOptionalNumber(diagnostic.ActualValue),
+                        FormatOptionalNumber(diagnostic.Threshold));
+                case CandidateDiagnosticCode.NarrowRemainderRedistributed:
+                    return string.Format(
+                        CultureInfo.InvariantCulture,
+                        "{0}自然窄余量 {1} mm 已按半砖/过渡砖重分配"
+                            + "（默认下限 {2} mm）",
+                        axis,
+                        FormatOptionalNumber(diagnostic.ActualValue),
+                        FormatOptionalNumber(diagnostic.Threshold));
+                case CandidateDiagnosticCode.CenteredDoorDefaultApplied:
+                    return "门洞居中，使用固定 WCS 优先候选";
+                case CandidateDiagnosticCode.CenteredDoorFlipped:
+                    return "门洞居中，已翻转等价沿墙分配";
+                case CandidateDiagnosticCode.MinimumCutNotMet:
+                    return string.Format(
+                        CultureInfo.InvariantCulture,
+                        "{0}边界砖 {1} mm 小于默认下限 {2} mm",
+                        axis,
+                        FormatOptionalNumber(diagnostic.ActualValue),
+                        FormatOptionalNumber(diagnostic.Threshold));
+                case CandidateDiagnosticCode.InsufficientFullTileForRedistribution:
+                    return axis + "没有可用于半砖重分配的整砖";
+                case CandidateDiagnosticCode.PolicyConstraintNotSatisfied:
+                    return string.IsNullOrWhiteSpace(diagnostic.Message)
+                        ? axis + "未满足候选策略约束"
+                        : diagnostic.Message;
+                default:
+                    throw new ArgumentOutOfRangeException(
+                        nameof(diagnostic.Code));
+            }
+        }
+
+        private static string FormatOptionalNumber(double? value)
+        {
+            return value.HasValue ? FormatNumber(value.Value) : "未知";
+        }
+
+        private static string FormatAxis(TileLayoutAxis axis)
+        {
+            return axis == TileLayoutAxis.X ? "X" : "Y";
+        }
+
+        private static string FormatRoomSide(RoomSide side)
+        {
+            switch (side)
+            {
+                case RoomSide.West:
+                    return "西墙";
+                case RoomSide.East:
+                    return "东墙";
+                case RoomSide.South:
+                    return "南墙";
+                case RoomSide.North:
+                    return "北墙";
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(side));
+            }
+        }
+
+        private static void GetDoorDirections(
+            RoomSide side,
+            out string lowDirection,
+            out string highDirection,
+            out string entryDirection)
+        {
+            switch (side)
+            {
+                case RoomSide.West:
+                    lowDirection = "南";
+                    highDirection = "北";
+                    entryDirection = "西→东";
+                    return;
+                case RoomSide.East:
+                    lowDirection = "南";
+                    highDirection = "北";
+                    entryDirection = "东→西";
+                    return;
+                case RoomSide.South:
+                    lowDirection = "西";
+                    highDirection = "东";
+                    entryDirection = "南→北";
+                    return;
+                case RoomSide.North:
+                    lowDirection = "西";
+                    highDirection = "东";
+                    entryDirection = "北→南";
+                    return;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(side));
             }
         }
     }

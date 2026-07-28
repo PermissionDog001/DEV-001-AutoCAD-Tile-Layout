@@ -160,6 +160,122 @@ namespace TileLayout.Core.Tests
         }
 
         [TestMethod]
+        public void FormatDoorProjectionFailure_DifferentWalls_ExplainsRetryAndNoWrite()
+        {
+            var room = new AxisAlignedRectangle(0.0, 1300.0, 0.0, 1300.0);
+            DoorOpeningProjectionResult projection =
+                DoorOpeningPointAdapter.ProjectToRoomWall(
+                    room,
+                    new Point3D(0.0, 400.0),
+                    new Point3D(800.0, 1300.0));
+
+            Assert.AreEqual(
+                "门洞两点无效：两个门洞端点必须位于同一面房间墙。 "
+                    + "请重新选择；未生成任何对象。",
+                TileLayoutCommandText.FormatDoorProjectionFailure(projection));
+        }
+
+        [TestMethod]
+        public void FormatDoorOpeningSummary_WestDoor_ReportsWallBiasAndEntryDirection()
+        {
+            var room = new AxisAlignedRectangle(0.0, 1300.0, 0.0, 1300.0);
+            var opening = new DoorOpening(RoomSide.West, 800.0, 1100.0);
+
+            Assert.AreEqual(
+                "门洞识别：西墙，洞宽=300 mm，偏北，进门方向=西→东，"
+                    + "到南/北端净距=800/200 mm。",
+                TileLayoutCommandText.FormatDoorOpeningSummary(room, opening));
+        }
+
+        [TestMethod]
+        public void FormatEngineeringCandidateSummary_Sample02_ReportsBandsDirectionsAndDiagnostics()
+        {
+            EngineeringRectangularLayoutResult layout =
+                EngineeringRectangularLayoutCalculator.Calculate(
+                    new AxisAlignedRectangle(0.0, 3126.0, 0.0, 3076.0),
+                    new EngineeringRectangularLayoutParameters(
+                        600.0,
+                        600.0,
+                        new DoorOpening(RoomSide.West, 200.0, 800.0)));
+
+            string message =
+                TileLayoutCommandText.FormatEngineeringCandidateSummary(
+                    layout.DefaultCandidate);
+
+            StringAssert.StartsWith(message, "候选摘要：默认候选");
+            StringAssert.Contains(
+                message,
+                "西/东/南/北边砖=426/300/300/376 mm");
+            StringAssert.Contains(
+                message,
+                "施工起铺方向=X 东→西、Y 南→北");
+            StringAssert.Contains(
+                message,
+                "X向自然窄余量 126 mm 已按半砖/过渡砖重分配");
+            StringAssert.Contains(
+                message,
+                "Y向自然窄余量 76 mm 已按半砖/过渡砖重分配");
+        }
+
+        [TestMethod]
+        public void FormatEngineeringCandidateSummary_FlippedCenteredDoor_ReportsEquivalentFlip()
+        {
+            EngineeringRectangularLayoutResult layout =
+                EngineeringRectangularLayoutCalculator.Calculate(
+                    new AxisAlignedRectangle(0.0, 1300.0, 0.0, 1300.0),
+                    new EngineeringRectangularLayoutParameters(
+                        600.0,
+                        600.0,
+                        new DoorOpening(RoomSide.West, 500.0, 800.0)));
+
+            string message =
+                TileLayoutCommandText.FormatEngineeringCandidateSummary(
+                    layout.FlippedCandidate);
+
+            StringAssert.Contains(message, "候选摘要：居中等价翻转");
+            StringAssert.Contains(message, "门洞居中，已翻转等价沿墙分配");
+        }
+
+        [TestMethod]
+        public void FormatEngineeringFailure_TooSmallRoom_ReportsRejectionDiagnostics()
+        {
+            EngineeringRectangularLayoutResult layout =
+                EngineeringRectangularLayoutCalculator.Calculate(
+                    new AxisAlignedRectangle(0.0, 200.0, 0.0, 600.0),
+                    new EngineeringRectangularLayoutParameters(
+                        600.0,
+                        600.0,
+                        new DoorOpening(RoomSide.West, 100.0, 500.0)));
+
+            string message =
+                TileLayoutCommandText.FormatEngineeringFailure(layout);
+
+            StringAssert.StartsWith(message, "没有可接受的门洞控制候选：");
+            StringAssert.Contains(message, "X向边界砖 200 mm 小于默认下限 252 mm");
+            StringAssert.Contains(message, "X向没有可用于半砖重分配的整砖");
+            StringAssert.EndsWith(message, "未生成任何对象。");
+        }
+
+        [TestMethod]
+        public void FormatEngineeringWriteSuccess_ReportsCandidateLayerAndLineCount()
+        {
+            EngineeringRectangularLayoutResult layout =
+                EngineeringRectangularLayoutCalculator.Calculate(
+                    new AxisAlignedRectangle(0.0, 1300.0, 0.0, 1300.0),
+                    new EngineeringRectangularLayoutParameters(
+                        600.0,
+                        600.0,
+                        new DoorOpening(RoomSide.West, 100.0, 500.0)));
+
+            Assert.AreEqual(
+                "门洞控制排版已接受：默认候选；已在图层 "
+                    + "TILE_LAYOUT_DOOR_RECT 生成 4 条内部分格线。",
+                TileLayoutCommandText.FormatEngineeringWriteSuccess(
+                    layout.DefaultCandidate,
+                    "TILE_LAYOUT_DOOR_RECT"));
+        }
+
+        [TestMethod]
         public void FormatParameterError_Width_ReturnsRetryGuidance()
         {
             Assert.AreEqual(

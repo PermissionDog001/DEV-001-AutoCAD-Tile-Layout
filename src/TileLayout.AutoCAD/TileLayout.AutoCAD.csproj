@@ -62,6 +62,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="Adapter\DoorLayoutPreviewSession.cs" />
+    <Compile Include="Adapter\DoorOpeningPointAdapter.cs" />
     <Compile Include="Adapter\TileLayoutCommandText.cs" />
     <Compile Include="Commands\TileLayoutCommands.cs" />
     <Compile Include="FormalPluginEntry.cs" />
