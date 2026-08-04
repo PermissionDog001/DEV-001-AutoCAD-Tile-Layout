@@ -1,0 +1,35 @@
+namespace TileLayout.Core
+{
+    public enum CandidateDiagnosticCode
+    {
+        ExactTileMultiple,
+        NaturalRemainderAccepted,
+        NarrowRemainderRedistributed,
+        CenteredDoorDefaultApplied,
+        CenteredDoorFlipped,
+        MinimumCutNotMet,
+        InsufficientFullTileForRedistribution,
+        PolicyConstraintNotSatisfied,
+        WholeRoomSinglePhaseGenerated,
+        MainSecondaryLayoutGenerated,
+        ParallelPhaseInherited,
+        PerpendicularPhaseReset,
+        ProtrusionBandKeptIndependent,
+        ProtrusionBandAbsorbed,
+        ProtrusionBandCannotBeAbsorbed,
+        ContinuousIrregularTileRetained,
+        OrthogonalClipRedistributed,
+        OrthogonalClipAlongWallFlipped,
+        BelowDefaultMinimumRequiresPolicy,
+        BelowRecommendedMinimumRequiresReview,
+        ProjectAbsoluteMinimumNotMet,
+        AlternativeWholeRoomPhaseGenerated,
+        DoorControlledBoundaryPatternClippedBelowAbsoluteMinimum,
+        LargeBoundaryCutWithoutCornerOrSavingBand,
+        SmallBoundaryCutWithoutOppositeFullOrSeam,
+        DuplicatePhaseRemoved,
+        CandidateSearchTruncated,
+        DominatedByCandidate,
+        MultipleCandidatesRequireSelection
+    }
+}

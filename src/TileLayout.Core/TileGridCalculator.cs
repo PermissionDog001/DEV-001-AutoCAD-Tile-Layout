@@ -8,46 +8,97 @@ namespace TileLayout.Core
     {
         public static TileLayoutResult Calculate(AxisAlignedRectangle room)
         {
+            return CalculateCore(
+                room,
+                TileLayoutRules.Fixed600Parameters,
+                null);
+        }
+
+        public static TileLayoutResult Calculate(
+            AxisAlignedRectangle room,
+            TileLayoutParameters parameters)
+        {
+            return CalculateCore(
+                room,
+                parameters,
+                TileLayoutRules.MaximumParameterizedDivisionLineCount);
+        }
+
+        private static TileLayoutResult CalculateCore(
+            AxisAlignedRectangle room,
+            TileLayoutParameters parameters,
+            int? maximumDivisionLineCount)
+        {
             if (room == null)
             {
                 throw new ArgumentNullException(nameof(room));
             }
 
-            int fullColumnCount = GetFullSpanCount(room.Width, TileLayoutRules.TileWidth);
-            int fullRowCount = GetFullSpanCount(room.Height, TileLayoutRules.TileHeight);
-            double eastRemainder = GetRemainder(
-                room.Width,
-                TileLayoutRules.TileWidth,
-                fullColumnCount);
-            double northRemainder = GetRemainder(
-                room.Height,
-                TileLayoutRules.TileHeight,
-                fullRowCount);
+            if (parameters == null)
+            {
+                throw new ArgumentNullException(nameof(parameters));
+            }
 
-            var divisionLines = new List<LineSegment3D>();
-            AddVerticalLines(room, divisionLines);
-            AddHorizontalLines(room, divisionLines);
+            TileSpanMetrics columns = TileSpanCalculator.Calculate(
+                room.Width,
+                parameters.TileWidth);
+            TileSpanMetrics rows = TileSpanCalculator.Calculate(
+                room.Height,
+                parameters.TileHeight);
+            double estimatedDivisionLineCount =
+                columns.InternalLineCount + rows.InternalLineCount;
+
+            if (maximumDivisionLineCount.HasValue
+                && estimatedDivisionLineCount > maximumDivisionLineCount.Value)
+            {
+                throw new TileLayoutLimitExceededException(
+                    estimatedDivisionLineCount,
+                    maximumDivisionLineCount.Value);
+            }
+
+            int divisionLineCount = checked((int)estimatedDivisionLineCount);
+            int fullColumnCount = checked((int)columns.FullSpanCount);
+            int fullRowCount = checked((int)rows.FullSpanCount);
+            int verticalLineCount = checked((int)columns.InternalLineCount);
+            int horizontalLineCount = checked((int)rows.InternalLineCount);
+
+            var divisionLines = new List<LineSegment3D>(divisionLineCount);
+            AddVerticalLines(
+                room,
+                parameters.TileWidth,
+                verticalLineCount,
+                parameters.StartsFromEast,
+                divisionLines);
+            AddHorizontalLines(
+                room,
+                parameters.TileHeight,
+                horizontalLineCount,
+                parameters.StartsFromNorth,
+                divisionLines);
 
             return new TileLayoutResult(
                 room,
+                parameters,
                 fullColumnCount,
                 fullRowCount,
-                eastRemainder,
-                northRemainder,
+                columns.Remainder,
+                rows.Remainder,
                 divisionLines);
         }
 
         private static void AddVerticalLines(
             AxisAlignedRectangle room,
+            double tileWidth,
+            int lineCount,
+            bool startsFromEast,
             ICollection<LineSegment3D> divisionLines)
         {
-            for (int index = 1; ; index++)
+            for (int index = 1; index <= lineCount; index++)
             {
-                double x = room.West + (TileLayoutRules.TileWidth * index);
-                if (x >= room.East - GeometryTolerance.Coordinate)
-                {
-                    return;
-                }
+                double offset = tileWidth * index;
+                double x = startsFromEast
+                    ? room.East - offset
+                    : room.West + offset;
 
                 divisionLines.Add(
                     new LineSegment3D(
@@ -58,15 +109,17 @@ namespace TileLayout.Core
 
         private static void AddHorizontalLines(
             AxisAlignedRectangle room,
+            double tileHeight,
+            int lineCount,
+            bool startsFromNorth,
             ICollection<LineSegment3D> divisionLines)
         {
-            for (int index = 1; ; index++)
+            for (int index = 1; index <= lineCount; index++)
             {
-                double y = room.South + (TileLayoutRules.TileHeight * index);
-                if (y >= room.North - GeometryTolerance.Coordinate)
-                {
-                    return;
-                }
+                double offset = tileHeight * index;
+                double y = startsFromNorth
+                    ? room.North - offset
+                    : room.South + offset;
 
                 divisionLines.Add(
                     new LineSegment3D(
@@ -75,32 +128,5 @@ namespace TileLayout.Core
             }
         }
 
-        private static int GetFullSpanCount(double length, double tileSize)
-        {
-            double quotient = length / tileSize;
-            double nearestInteger = Math.Round(quotient);
-
-            if (Math.Abs(length - (nearestInteger * tileSize))
-                <= GeometryTolerance.Coordinate)
-            {
-                return checked((int)nearestInteger);
-            }
-
-            return checked((int)Math.Floor(quotient));
-        }
-
-        private static double GetRemainder(
-            double length,
-            double tileSize,
-            int fullSpanCount)
-        {
-            double remainder = length - (fullSpanCount * tileSize);
-            if (Math.Abs(remainder) <= GeometryTolerance.Coordinate)
-            {
-                return 0.0;
-            }
-
-            return remainder;
-        }
     }
 }

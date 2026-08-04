@@ -37,6 +37,18 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <!-- The repository uses an old-style .NET Framework project.  Keep the
+         package references above for restore, and explicitly expose the
+         framework assembly so dotnet MSBuild 9 does not drop it during
+         ResolveAssemblyReference. -->
+    <Reference Include="MSTest.TestFramework">
+      <HintPath>..\..\build\packages\mstest.testframework\4.3.2\lib\net462\MSTest.TestFramework.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="MSTest.TestFramework.Extensions">
+      <HintPath>..\..\build\packages\mstest.testframework\4.3.2\lib\net462\MSTest.TestFramework.Extensions.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>
@@ -55,15 +67,73 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\DoorBlockInputPolicy.cs">
+      <Link>AutoCADAdapter\DoorBlockInputPolicy.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\DoorLayoutPreviewSession.cs">
+      <Link>AutoCADAdapter\DoorLayoutPreviewSession.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\DoorObjectRecognition.cs">
+      <Link>AutoCADAdapter\DoorObjectRecognition.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\DoorOpeningInputSession.cs">
+      <Link>AutoCADAdapter\DoorOpeningInputSession.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\DoorOpeningPointAdapter.cs">
+      <Link>AutoCADAdapter\DoorOpeningPointAdapter.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\GuidedBoundaryPolylineConverter.cs">
+      <Link>AutoCADAdapter\GuidedBoundaryPolylineConverter.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\OrthogonalDecisionPaletteSession.cs">
+      <Link>AutoCADAdapter\OrthogonalDecisionPaletteSession.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\OrthogonalDecisionGuidedText.cs">
+      <Link>AutoCADAdapter\OrthogonalDecisionGuidedText.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\OrthogonalDecisionGuidedWorkflow.cs">
+      <Link>AutoCADAdapter\OrthogonalDecisionGuidedWorkflow.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\OrthogonalDecisionInputSession.cs">
+      <Link>AutoCADAdapter\OrthogonalDecisionInputSession.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\OrthogonalDecisionPaletteText.cs">
+      <Link>AutoCADAdapter\OrthogonalDecisionPaletteText.cs</Link>
+    </Compile>
+    <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\OrthogonalLayoutWritebackPolicy.cs">
+      <Link>AutoCADAdapter\OrthogonalLayoutWritebackPolicy.cs</Link>
+    </Compile>
     <Compile Include="..\..\src\TileLayout.AutoCAD\Adapter\TileLayoutCommandText.cs">
       <Link>AutoCADAdapter\TileLayoutCommandText.cs</Link>
     </Compile>
+    <Compile Include="DoorBlockInputPolicyTests.cs" />
+    <Compile Include="ComplexOrthogonalBoundaryFixture.cs" />
+    <Compile Include="DoorLayoutPreviewSessionTests.cs" />
+    <Compile Include="DoorGeometryRecognizerTests.cs" />
+    <Compile Include="DoorObjectRecognitionTests.cs" />
+    <Compile Include="DoorOpeningInputSessionTests.cs" />
+    <Compile Include="DoorOpeningPointAdapterTests.cs" />
+    <Compile Include="EngineeringRectangularLayoutCalculatorTests.cs" />
+    <Compile Include="Dor7G1GeneralizationTests.cs" />
+    <Compile Include="Dor7G3CornerAlignmentTests.cs" />
+    <Compile Include="EngineeringOrthogonalLayoutCalculatorTests.cs" />
+    <Compile Include="EngineeringOrthogonalDecisionCalculatorTests.cs" />
+    <Compile Include="LayoutDrawingPlanTests.cs" />
+    <Compile Include="OrthogonalDecisionPaletteSessionTests.cs" />
+    <Compile Include="OrthogonalDecisionGuidedWorkflowTests.cs" />
+    <Compile Include="OrthogonalDecisionInputSessionTests.cs" />
     <Compile Include="GeometryToleranceTests.cs" />
+    <Compile Include="OrthogonalBoundaryNormalizerTests.cs" />
+    <Compile Include="OrthogonalRoomOffsetterTests.cs" />
+    <Compile Include="OrthogonalRoomValidatorTests.cs" />
+    <Compile Include="OrthogonalTileGridCalculatorTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RectangleValidatorTests.cs" />
+    <Compile Include="StaticDoorGeometryRecognizerTests.cs" />
     <Compile Include="TestGeometry.cs" />
     <Compile Include="TileLayoutCommandTextTests.cs" />
     <Compile Include="TileGridCalculatorTests.cs" />
+    <Compile Include="TileLayoutParametersTests.cs" />
   </ItemGroup>
 
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
