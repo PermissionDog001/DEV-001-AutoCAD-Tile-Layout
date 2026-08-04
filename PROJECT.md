@@ -6,14 +6,16 @@
 - 项目名称：AutoCAD瓷砖自动排版插件
 - 创建日期：2026-07-19
 - 项目目录：`E:\Workspace\Development\DEV-001-AutoCAD瓷砖自动排版插件`
-- 当前状态：M1～M9、SC1、OR1/OR2、DR1～DR5-S 和 DOR2～DOR7-G2 的冻结范围均已有实现与证据；DR5 动态块路线因真实正样本为 0 保持暂停。DOR7-G3 已实现 270° 反射角锚定、实际分格线命中、同组 Pareto 取舍和同源只读诊断；DOR8 正式写回已完成编码、Core/适配自动验证和静态边界审计，待一次 AutoCAD 2021 DWG 副本实机收口。项目绝对下限新增“按图面确认/不设置数值绝对下限”互斥模式：只允许明确选择后进入专项提醒、同源预览和最终确认，不改 G3 算法。版本、历史 `dist` 和既有未提交改动保持不变。
+- 当前状态：DOR9 灰缝、闭合多段线、抹灰完成面、界面和性能收口已完成；代码已合并到 GitHub `main`。用户已确认修复后的 AutoCAD 2021 实机测试完成，`v0.2.0` 正式包、校验清单、标签和 GitHub Release 已完成。历史阶段记录继续保留，DOR8 专项实机写回证据不与 DOR9 实机测试混同。
 - 路线图与测试预算：`docs/development-roadmap.md`
 - DOR9-A 规则草案：`docs/dor9-grout-polyline-plaster.md`
 - 已实现阶段总账：`docs/implementation-ledger.md`
 - 主要使用者：瓷砖排版与土建创优工作使用者
 - 关联业务来源：`Project-002-F地块创优策划`
 
-## 下一独立任务：灰缝、闭合多段线与抹灰完成面支持（待规则冻结）
+## 历史任务：灰缝、闭合多段线与抹灰完成面支持
+
+> 本节保留原始任务计划；DOR9-A/B 已完成，当前发布检查见第 68 节。
 
 下一阶段暂定按以下顺序推进：
 
@@ -133,7 +135,7 @@
 | M7 | `TILELAYOUT` AutoCAD 适配 | 已完成：2026-07-20，参数提示、共享选择/事务路径、`TILE_LAYOUT` 和三类宿主无关消息已接入，Debug/Release 各 51/51 |
 | M8 | V0.2 自动质量门 | 已完成：2026-07-20，锁定恢复、Debug/Release 各 51/51、完整解决方案双配置备用目录重建及产物保护检查均通过 |
 | M9 | V0.2 脱敏 DWG 实机验收 | 已完成：2026-07-21，AutoCAD 2021 数值、方向、取消/错误、图层、超限、撤销、原图保护和不保存均通过 |
-| M10 | V0.2.0 发布检查 | 未开始 |
+| M10 | V0.2.0 发布检查 | 已完成：2026-08-04，正式包、SHA-256、标签和私有 GitHub Release 已完成 |
 | SC1 | 工程起铺角控制 | 已完成：施工语义、核心、AutoCAD 适配、Debug 56/56、隔离插件编译和 AutoCAD 2021 最小实机均通过 |
 | OR1 | 正交简单房间边界与裁切 | 已完成：需求/接口、`TILEORTHO`、聚焦代码审查、Debug/Release 81/81、完整解决方案隔离重建和 AutoCAD 2021 最小实机均通过 |
 | DR1 | 门洞控制的正交矩形工程排版 | 已完成规则阶段：两个样例、0.42 硬下限、大小砖分配、核心算法和 AutoCAD 交互计划已冻结；宿主无关实现见 DR2 |
@@ -841,3 +843,11 @@ G3 算法、推荐下限等号组合资格门、候选保留/分组和同源零�
 - 向导展示投影改为结果变化时重建：需求文案、满足规则/待复核/规则缺失候选组、淘汰候选筛选与分页均复用只读缓存；候选顺序、状态、资格门和候选计算不变。
 - WinForms 完整刷新、会话重置和候选/诊断列表更新采用批量布局/批量绘制；工程详情未展开时不生成全文；候选切换、取消任务和刷新异常均保证忙碌状态复位，降低重复重绘和界面卡死风险。
 - Core Debug/Release 自动测试均 `333/333`；Core 与 AutoCAD 适配 Debug/Release 独立构建均 0 警告、0 错误。静态写入边界发布前复核、working tree 盘点和拟暂存文件清单仍待完成；未获明确授权前不提交、不推送、不创建标签、不改版本号、不改 `dist`、不发布或同步 GitHub。
+
+## 68. v0.2.0 正式版本发布（2026-08-04）
+
+- 版本号冻结为 `v0.2.0`；核心与正式 AutoCAD 插件程序集的 AssemblyVersion/FileVersion 为 `0.2.0.0`。技术探针程序集继续保留其独立版本，不属于正式交付包。
+- 正式包为 `dist/TileLayout-0.2.0.zip`，大小 `170,603` bytes，SHA-256 为 `7EF6B392396FDF6B751C442C7B6A1258356C52390491FEE51D4ECFF0A1AAC689`；包内只有 `TileLayout.AutoCAD.dll`、`TileLayout.Core.dll` 和 `使用说明.md`，无 PDB、AutoCAD Managed DLL、测试文件或日志。
+- 完整校验值见 [docs/release-v0.2.0.md](docs/release-v0.2.0.md) 和 `dist/TileLayout-0.2.0-sha256.txt`。历史 `v0.1.0` 包及 Release 保留，不被覆盖。
+- Core Debug/Release 自动测试均 `333/333`；AutoCAD 适配独立 Release 重建为 0 警告、0 错误，静态写回边界复核通过。用户已确认 DOR9 修复后的 AutoCAD 2021 实机测试完成。
+- `v0.2.0` 标签和私有 GitHub Release 地址为 <https://github.com/PermissionDog001/DEV-001-AutoCAD-Tile-Layout/releases/tag/v0.2.0>。仓库可见性未改变，未创建额外发布渠道或同步到其他平台。

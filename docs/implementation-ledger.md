@@ -27,7 +27,7 @@
 | M7 | `TILELAYOUT` 参数输入、共享选择/事务路径和 `TILE_LAYOUT` | Debug/Release 各 51/51 | 由 M9 集中覆盖 | [autocad-adapter-m7.md](autocad-adapter-m7.md) |
 | M8 | V0.2 自动质量门、锁定恢复和隔离构建 | Debug/Release 各 51/51；无 Autodesk DLL 复制 | 不重复实机 | [automated-quality-gate-m8.md](automated-quality-gate-m8.md) |
 | M9 | 参数化矩形完整脱敏 DWG 验收 | 自动边界保留 | 数值、方向、取消、图层、超限、撤销和关闭不保存通过 | [dwg-acceptance-m9.md](dwg-acceptance-m9.md) |
-| M10 | V0.2.0 发布检查 | **未开始** | **未开始** | [technical-plan-v0.2.md](technical-plan-v0.2.md) |
+| M10 | V0.2.0 发布检查 | **已完成** | **v0.2.0 正式包、SHA-256、标签和私有 GitHub Release 已核对** | [release-v0.2.0.md](release-v0.2.0.md) |
 | SC1 | `TILELAYOUT` 的 SW/SE/NW/NE 工程起铺角控制 | Debug 56/56、隔离编译通过 | 最小实机通过 | [start-control.md](start-control.md) |
 
 ## 3. 正交简单房产品线
