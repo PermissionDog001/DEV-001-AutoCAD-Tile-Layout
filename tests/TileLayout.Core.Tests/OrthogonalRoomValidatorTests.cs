@@ -114,6 +114,71 @@ namespace TileLayout.Core.Tests
         }
 
         [TestMethod]
+        public void Validate_ComplexSteppedRoomWithMultipleConcavitiesAndProtrusions_IsAccepted()
+        {
+            OrthogonalRoomValidationResult result = OrthogonalRoomValidator.Validate(
+                LinesFromVertices(ComplexSteppedRoomVertices(0.0, 0.0)));
+
+            Assert.IsTrue(result.IsValid, result.ErrorMessage);
+            Assert.AreEqual(4800.0, result.Room.Width, GeometryTolerance.Coordinate);
+            Assert.AreEqual(4200.0, result.Room.Height, GeometryTolerance.Coordinate);
+            Assert.AreEqual(14, result.Room.Vertices.Count);
+            AssertPoint(new Point3D(0.0, 0.0), result.Room.Vertices[0]);
+        }
+
+        [TestMethod]
+        public void Validate_MultipleProtrusionsAndConcavities_IsAcceptedAsOneSimpleLoop()
+        {
+            OrthogonalRoomValidationResult result = OrthogonalRoomValidator.Validate(
+                LinesFromVertices(
+                    new Point3D(0.0, 0.0),
+                    new Point3D(7200.0, 0.0),
+                    new Point3D(7200.0, 1200.0),
+                    new Point3D(6000.0, 1200.0),
+                    new Point3D(6000.0, 2400.0),
+                    new Point3D(7200.0, 2400.0),
+                    new Point3D(7200.0, 3600.0),
+                    new Point3D(4800.0, 3600.0),
+                    new Point3D(4800.0, 4800.0),
+                    new Point3D(3600.0, 4800.0),
+                    new Point3D(3600.0, 3600.0),
+                    new Point3D(2400.0, 3600.0),
+                    new Point3D(2400.0, 4800.0),
+                    new Point3D(1200.0, 4800.0),
+                    new Point3D(1200.0, 3600.0),
+                    new Point3D(0.0, 3600.0)));
+
+            Assert.IsTrue(result.IsValid, result.ErrorMessage);
+            Assert.AreEqual(7200.0, result.Room.Width, GeometryTolerance.Coordinate);
+            Assert.AreEqual(4800.0, result.Room.Height, GeometryTolerance.Coordinate);
+            Assert.AreEqual(16, result.Room.Vertices.Count);
+        }
+
+        [TestMethod]
+        public void Validate_ComplexSteppedRoom_ShuffledAndReversedInput_IsCanonical()
+        {
+            LineSegment3D[] original = LinesFromVertices(
+                ComplexSteppedRoomVertices(0.0, 0.0));
+            LineSegment3D[] shuffled = original
+                .Reverse()
+                .Select(Reverse)
+                .ToArray();
+
+            OrthogonalRoomValidationResult first =
+                OrthogonalRoomValidator.Validate(original);
+            OrthogonalRoomValidationResult second =
+                OrthogonalRoomValidator.Validate(shuffled);
+
+            Assert.IsTrue(first.IsValid, first.ErrorMessage);
+            Assert.IsTrue(second.IsValid, second.ErrorMessage);
+            Assert.AreEqual(first.Room.Vertices.Count, second.Room.Vertices.Count);
+            for (int index = 0; index < first.Room.Vertices.Count; index++)
+            {
+                AssertPoint(first.Room.Vertices[index], second.Room.Vertices[index]);
+            }
+        }
+
+        [TestMethod]
         public void Validate_ShuffledAndReversedInput_IsSelectionOrderIndependent()
         {
             LineSegment3D[] original = FragmentedRectangleLines().ToArray();
@@ -304,6 +369,29 @@ namespace TileLayout.Core.Tests
             }
 
             return lines;
+        }
+
+        internal static Point3D[] ComplexSteppedRoomVertices(
+            double offsetX,
+            double offsetY)
+        {
+            return new[]
+            {
+                new Point3D(offsetX, offsetY),
+                new Point3D(offsetX + 4800.0, offsetY),
+                new Point3D(offsetX + 4800.0, offsetY + 1200.0),
+                new Point3D(offsetX + 3600.0, offsetY + 1200.0),
+                new Point3D(offsetX + 3600.0, offsetY + 2400.0),
+                new Point3D(offsetX + 4800.0, offsetY + 2400.0),
+                new Point3D(offsetX + 4800.0, offsetY + 3600.0),
+                new Point3D(offsetX + 3000.0, offsetY + 3600.0),
+                new Point3D(offsetX + 3000.0, offsetY + 3000.0),
+                new Point3D(offsetX + 2400.0, offsetY + 3000.0),
+                new Point3D(offsetX + 2400.0, offsetY + 4200.0),
+                new Point3D(offsetX + 1200.0, offsetY + 4200.0),
+                new Point3D(offsetX + 1200.0, offsetY + 3000.0),
+                new Point3D(offsetX, offsetY + 3000.0)
+            };
         }
 
         private static IReadOnlyCollection<LineSegment3D> FragmentedRectangleLines()

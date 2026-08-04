@@ -25,10 +25,10 @@ namespace TileLayout.Core
 
             TileSpanMetrics xMetrics = TileSpanCalculator.Calculate(
                 room.Width,
-                parameters.TileWidth);
+                parameters.GridTileWidth);
             TileSpanMetrics yMetrics = TileSpanCalculator.Calculate(
                 room.Height,
-                parameters.TileHeight);
+                parameters.GridTileHeight);
             double estimatedDivisionLineCount =
                 xMetrics.InternalLineCount + yMetrics.InternalLineCount;
             int maximum = TileLayoutRules.MaximumParameterizedDivisionLineCount;
@@ -117,6 +117,7 @@ namespace TileLayout.Core
                     DoorControlledAxisRole.DoorNormal,
                     room.Width,
                     parameters.TileWidth,
+                    parameters.GridTileWidth,
                     xMetrics,
                     parameters.DoorOpening.Wall,
                     depthHalfSide);
@@ -125,6 +126,7 @@ namespace TileLayout.Core
                     DoorControlledAxisRole.AlongWall,
                     room.Height,
                     parameters.TileHeight,
+                    parameters.GridTileHeight,
                     yMetrics,
                     alongControlSide,
                     alongHalfSide);
@@ -136,6 +138,7 @@ namespace TileLayout.Core
                     DoorControlledAxisRole.AlongWall,
                     room.Width,
                     parameters.TileWidth,
+                    parameters.GridTileWidth,
                     xMetrics,
                     alongControlSide,
                     alongHalfSide);
@@ -144,6 +147,7 @@ namespace TileLayout.Core
                     DoorControlledAxisRole.DoorNormal,
                     room.Height,
                     parameters.TileHeight,
+                    parameters.GridTileHeight,
                     yMetrics,
                     parameters.DoorOpening.Wall,
                     depthHalfSide);
@@ -219,11 +223,12 @@ namespace TileLayout.Core
                 metrics);
         }
 
-        private static AxisPlanBuildResult BuildAxisPlan(
+        internal static AxisPlanBuildResult BuildAxisPlan(
             TileLayoutAxis axis,
             DoorControlledAxisRole role,
             double length,
             double tileSize,
+            double gridTileSize,
             TileSpanMetrics metrics,
             RoomSide controlSide,
             RoomSide halfSideWhenRedistributed)
@@ -233,11 +238,25 @@ namespace TileLayout.Core
             double minimumCut =
                 tileSize * EngineeringLayoutRules.DefaultMinimumCutRatio;
             double remainder = metrics.Remainder;
+            double grout = gridTileSize - tileSize;
+            if (double.IsNaN(grout)
+                || double.IsInfinity(grout)
+                || grout < -GeometryTolerance.Coordinate)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(gridTileSize),
+                    "The grid pitch must not be smaller than the physical tile size.");
+            }
+
+            grout = Math.Max(0.0, grout);
+            double physicalRemainder = remainder <= GeometryTolerance.Coordinate
+                ? 0.0
+                : remainder - grout;
             int fullSpanCount = checked((int)metrics.FullSpanCount);
 
             if (remainder <= GeometryTolerance.Coordinate)
             {
-                var segments = Repeat(tileSize, fullSpanCount);
+                var segments = Repeat(gridTileSize, fullSpanCount);
                 var plan = new BoundaryBandPlan(
                     axis,
                     role,
@@ -256,7 +275,8 @@ namespace TileLayout.Core
                     fullSpanCount,
                     Math.Max(0, fullSpanCount - 2),
                     false,
-                    segments);
+                    segments,
+                    gridTileSize);
                 return AxisPlanBuildResult.Success(
                     plan,
                     new CandidateDiagnostic(
@@ -266,7 +286,7 @@ namespace TileLayout.Core
                         axis));
             }
 
-            if (remainder + GeometryTolerance.Coordinate >= minimumCut)
+            if (physicalRemainder + GeometryTolerance.Coordinate >= minimumCut)
             {
                 var segments = new List<double>(fullSpanCount + 1);
                 bool controlIsLow = controlSide == lowSide;
@@ -277,7 +297,7 @@ namespace TileLayout.Core
 
                 for (int index = 0; index < fullSpanCount; index++)
                 {
-                    segments.Add(tileSize);
+                    segments.Add(gridTileSize);
                 }
 
                 if (controlIsLow)
@@ -299,7 +319,7 @@ namespace TileLayout.Core
                     axis,
                     role,
                     tileSize,
-                    remainder,
+                    physicalRemainder,
                     controlSide,
                     controlSide,
                     new AxisBoundaryBand(lowSide, lowWidth, lowKind),
@@ -307,7 +327,12 @@ namespace TileLayout.Core
                     fullSpanCount,
                     Math.Max(0, fullSpanCount - 1),
                     false,
-                    segments);
+                    segments,
+                    gridTileSize);
+                plan = ReplaceBoundaryWidths(
+                    plan,
+                    Math.Max(0.0, lowWidth - grout),
+                    Math.Max(0.0, highWidth - grout));
                 return AxisPlanBuildResult.Success(
                     plan,
                     new CandidateDiagnostic(
@@ -316,7 +341,7 @@ namespace TileLayout.Core
                         "The natural remainder satisfies the default minimum cut.",
                         axis,
                         Opposite(controlSide),
-                        remainder,
+                        physicalRemainder,
                         minimumCut));
             }
 
@@ -329,7 +354,7 @@ namespace TileLayout.Core
                         "The only boundary band is below the default minimum cut.",
                         axis,
                         null,
-                        remainder,
+                        physicalRemainder,
                         minimumCut),
                     new CandidateDiagnostic(
                         CandidateDiagnosticCode.InsufficientFullTileForRedistribution,
@@ -338,40 +363,54 @@ namespace TileLayout.Core
                         axis));
             }
 
-            double half = tileSize * EngineeringLayoutRules.HalfTileRatio;
-            double transition = half + remainder;
-            bool halfIsLow = halfSideWhenRedistributed == lowSide;
-            var redistributed = new List<double>(fullSpanCount + 1);
-            redistributed.Add(halfIsLow ? half : transition);
-            for (int index = 0; index < fullSpanCount - 1; index++)
+            if (physicalRemainder <= GeometryTolerance.Coordinate)
             {
-                redistributed.Add(tileSize);
+                return AxisPlanBuildResult.Failure(
+                    new CandidateDiagnostic(
+                        CandidateDiagnosticCode.MinimumCutNotMet,
+                        CandidateDiagnosticSeverity.Rejection,
+                        "The remaining boundary span is consumed by the fixed wall-grout allowance.",
+                        axis,
+                        null,
+                        physicalRemainder,
+                        minimumCut));
             }
 
-            redistributed.Add(halfIsLow ? transition : half);
+            double half = tileSize * EngineeringLayoutRules.HalfTileRatio;
+            double transition = half + physicalRemainder;
+            bool halfIsLow = halfSideWhenRedistributed == lowSide;
+            var redistributed = new List<double>(fullSpanCount + 1);
+            redistributed.Add((halfIsLow ? half : transition) + grout);
+            for (int index = 0; index < fullSpanCount - 1; index++)
+            {
+                redistributed.Add(gridTileSize);
+            }
+
+            redistributed.Add((halfIsLow ? transition : half) + grout);
             var redistributedPlan = new BoundaryBandPlan(
-                axis,
-                role,
-                tileSize,
-                remainder,
+                    axis,
+                    role,
+                    tileSize,
+                    physicalRemainder,
                 controlSide,
                 halfSideWhenRedistributed,
                 new AxisBoundaryBand(
                     lowSide,
-                    redistributed[0],
+                    redistributed[0] - grout,
                     halfIsLow
                         ? BoundaryBandKind.HalfTile
                         : BoundaryBandKind.Transition),
                 new AxisBoundaryBand(
                     highSide,
-                    redistributed[redistributed.Count - 1],
+                    redistributed[redistributed.Count - 1] - grout,
                     halfIsLow
                         ? BoundaryBandKind.Transition
                         : BoundaryBandKind.HalfTile),
                 fullSpanCount - 1,
                 fullSpanCount - 1,
                 true,
-                redistributed);
+                redistributed,
+                gridTileSize);
             return AxisPlanBuildResult.Success(
                 redistributedPlan,
                 new CandidateDiagnostic(
@@ -380,8 +419,35 @@ namespace TileLayout.Core
                     "A narrow natural remainder is redistributed into a half tile and a larger transition tile.",
                     axis,
                     halfSideWhenRedistributed,
-                    remainder,
+                    physicalRemainder,
                     minimumCut));
+        }
+
+        private static BoundaryBandPlan ReplaceBoundaryWidths(
+            BoundaryBandPlan plan,
+            double lowWidth,
+            double highWidth)
+        {
+            return new BoundaryBandPlan(
+                plan.Axis,
+                plan.Role,
+                plan.TileSize,
+                plan.NaturalRemainder,
+                plan.ControlSide,
+                plan.ConstructionStartSide,
+                new AxisBoundaryBand(
+                    plan.LowBoundary.Side,
+                    lowWidth,
+                    plan.LowBoundary.Kind),
+                new AxisBoundaryBand(
+                    plan.HighBoundary.Side,
+                    highWidth,
+                    plan.HighBoundary.Kind),
+                plan.FullTileCount,
+                plan.InteriorFullTileCount,
+                plan.UsesRedistribution,
+                new List<double>(plan.SegmentWidths),
+                plan.GridTileSize);
         }
 
         private static void ValidateDoorOpening(
@@ -540,10 +606,12 @@ namespace TileLayout.Core
         {
             int nonFullColumns = CountNonFull(
                 xPlan.SegmentWidths,
-                parameters.TileWidth);
+                parameters.TileWidth,
+                parameters.GroutWidthMm);
             int nonFullRows = CountNonFull(
                 yPlan.SegmentWidths,
-                parameters.TileHeight);
+                parameters.TileHeight,
+                parameters.GroutWidthMm);
             long columnCount = xPlan.SegmentWidths.Count;
             long rowCount = yPlan.SegmentWidths.Count;
             long boundaryNonFull =
@@ -573,12 +641,16 @@ namespace TileLayout.Core
 
         private static int CountNonFull(
             IReadOnlyList<double> widths,
-            double tileSize)
+            double tileSize,
+            double groutWidth)
         {
             int count = 0;
             foreach (double width in widths)
             {
-                if (!GeometryTolerance.NearlyEqual(width, tileSize))
+                double physicalWidth = width - groutWidth;
+                if (!GeometryTolerance.NearlyEqual(
+                    physicalWidth,
+                    tileSize))
                 {
                     count++;
                 }
@@ -666,6 +738,11 @@ namespace TileLayout.Core
                     double east = xCoordinates[column + 1];
                     double south = yCoordinates[row];
                     double north = yCoordinates[row + 1];
+                    double halfGrout = parameters.GroutWidthMm / 2.0;
+                    double bodyWest = west + halfGrout;
+                    double bodyEast = east - halfGrout;
+                    double bodySouth = south + halfGrout;
+                    double bodyNorth = north - halfGrout;
                     bool boundary =
                         column == 0
                         || column == columnCount - 1
@@ -692,8 +769,12 @@ namespace TileLayout.Core
                         boundarySides.Add(RoomSide.North);
                     }
 
-                    double width = xWidths[column];
-                    double height = yWidths[row];
+                    double width = Math.Max(
+                        0.0,
+                        xWidths[column] - parameters.GroutWidthMm);
+                    double height = Math.Max(
+                        0.0,
+                        yWidths[row] - parameters.GroutWidthMm);
                     bool full =
                         GeometryTolerance.NearlyEqual(
                             width,
@@ -704,10 +785,10 @@ namespace TileLayout.Core
                     return new TileFootprint(
                         new List<Point3D>
                         {
-                            new Point3D(west, south, room.Elevation),
-                            new Point3D(east, south, room.Elevation),
-                            new Point3D(east, north, room.Elevation),
-                            new Point3D(west, north, room.Elevation)
+                            new Point3D(bodyWest, bodySouth, room.Elevation),
+                            new Point3D(bodyEast, bodySouth, room.Elevation),
+                            new Point3D(bodyEast, bodyNorth, room.Elevation),
+                            new Point3D(bodyWest, bodyNorth, room.Elevation)
                         },
                         boundary
                             ? TileClassification.Boundary
@@ -735,7 +816,7 @@ namespace TileLayout.Core
             }
         }
 
-        private sealed class AxisPlanBuildResult
+        internal sealed class AxisPlanBuildResult
         {
             private AxisPlanBuildResult(
                 BoundaryBandPlan plan,

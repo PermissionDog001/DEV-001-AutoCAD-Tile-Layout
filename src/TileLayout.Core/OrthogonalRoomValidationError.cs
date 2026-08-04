@@ -13,6 +13,7 @@ namespace TileLayout.Core
         IntersectingOrTouchingBoundary,
         InvalidVertexDegree,
         MultipleDisconnectedLoops,
-        NonPositiveArea
+        NonPositiveArea,
+        InvalidFinishedFace
     }
 }

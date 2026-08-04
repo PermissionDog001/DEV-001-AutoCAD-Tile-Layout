@@ -37,5 +37,16 @@ namespace TileLayout.Core
         {
             return new OrthogonalRoomValidationResult(null, error, errorMessage);
         }
+
+        public static OrthogonalRoomValidationResult FinishedFaceFailure(
+            string errorMessage)
+        {
+            return new OrthogonalRoomValidationResult(
+                null,
+                OrthogonalRoomValidationError.InvalidFinishedFace,
+                string.IsNullOrWhiteSpace(errorMessage)
+                    ? "抹灰完成面无效。"
+                    : errorMessage);
+        }
     }
 }

@@ -3,6 +3,7 @@
 > 状态：方案已冻结；M6 至 M9 已完成，M10 待开始
 > 日期：2026-07-20
 > 需求基线：`docs/requirements-v0.2.md`
+> 文档定位：保留 V0.2 参数化矩形产品线 M6～M10 的历史技术计划；当前跨产品线的 DOR7/DOR8 路线、验收门和实机测试预算见 [development-roadmap.md](development-roadmap.md)。
 
 ## 1. 技术判断
 

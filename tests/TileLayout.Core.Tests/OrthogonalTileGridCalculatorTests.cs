@@ -56,6 +56,67 @@ namespace TileLayout.Core.Tests
         }
 
         [TestMethod]
+        public void Calculate_ComplexSteppedRoom_CutsEveryCandidateToInteriorFragments()
+        {
+            AxisAlignedOrthogonalPolygon room = ValidateRoom(
+                OrthogonalRoomValidatorTests.ComplexSteppedRoomVertices(0.0, 0.0));
+
+            OrthogonalTileLayoutResult result = OrthogonalTileGridCalculator.Calculate(
+                room,
+                new TileLayoutParameters(600.0, 600.0));
+
+            Assert.AreEqual(16, result.DivisionLines.Count);
+            AssertVertical(result.DivisionLines[4], 3000.0, 0.0, 3000.0);
+            AssertVertical(result.DivisionLines[5], 3600.0, 0.0, 1200.0);
+            AssertVertical(result.DivisionLines[6], 3600.0, 2400.0, 3600.0);
+            AssertHorizontal(result.DivisionLines[9], 600.0, 0.0, 4800.0);
+            AssertHorizontal(result.DivisionLines[13], 3000.0, 1200.0, 2400.0);
+            AssertHorizontal(result.DivisionLines[14], 3000.0, 3000.0, 4800.0);
+            AssertHorizontal(result.DivisionLines[15], 3600.0, 1200.0, 2400.0);
+        }
+
+        [TestMethod]
+        public void Calculate_NarrowCorridor_PreservesPositiveLengthInteriorFragments()
+        {
+            AxisAlignedOrthogonalPolygon room = ValidateRoom(
+                new Point3D(0.0, 0.0),
+                new Point3D(3000.0, 0.0),
+                new Point3D(3000.0, 200.0),
+                new Point3D(200.0, 200.0),
+                new Point3D(200.0, 3000.0),
+                new Point3D(0.0, 3000.0));
+
+            OrthogonalTileLayoutResult result = OrthogonalTileGridCalculator.Calculate(
+                room,
+                new TileLayoutParameters(600.0, 600.0));
+
+            Assert.AreEqual(8, result.DivisionLines.Count);
+            AssertVertical(result.DivisionLines[0], 600.0, 0.0, 200.0);
+            AssertHorizontal(result.DivisionLines[4], 600.0, 0.0, 200.0);
+        }
+
+        [TestMethod]
+        public void Calculate_ComplexSteppedRoomAtLargeWcsOffset_PreservesInteriorFragments()
+        {
+            const double offset = 1e12;
+            AxisAlignedOrthogonalPolygon room = ValidateRoom(
+                OrthogonalRoomValidatorTests.ComplexSteppedRoomVertices(
+                    offset,
+                    offset));
+
+            OrthogonalTileLayoutResult result = OrthogonalTileGridCalculator.Calculate(
+                room,
+                new TileLayoutParameters(600.0, 600.0));
+
+            Assert.AreEqual(16, result.DivisionLines.Count);
+            AssertVertical(
+                result.DivisionLines[4],
+                offset + 3000.0,
+                offset,
+                offset + 3000.0);
+        }
+
+        [TestMethod]
         public void Calculate_LRoomNorthEastAnchor_CanBeOutsideRoomAndStillDefinesGridPhase()
         {
             AxisAlignedOrthogonalPolygon room = ValidateRoom(

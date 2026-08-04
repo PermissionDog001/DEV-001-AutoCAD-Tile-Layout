@@ -9,6 +9,27 @@ namespace TileLayout.Core
         CenteredDoorFlipped,
         MinimumCutNotMet,
         InsufficientFullTileForRedistribution,
-        PolicyConstraintNotSatisfied
+        PolicyConstraintNotSatisfied,
+        WholeRoomSinglePhaseGenerated,
+        MainSecondaryLayoutGenerated,
+        ParallelPhaseInherited,
+        PerpendicularPhaseReset,
+        ProtrusionBandKeptIndependent,
+        ProtrusionBandAbsorbed,
+        ProtrusionBandCannotBeAbsorbed,
+        ContinuousIrregularTileRetained,
+        OrthogonalClipRedistributed,
+        OrthogonalClipAlongWallFlipped,
+        BelowDefaultMinimumRequiresPolicy,
+        BelowRecommendedMinimumRequiresReview,
+        ProjectAbsoluteMinimumNotMet,
+        AlternativeWholeRoomPhaseGenerated,
+        DoorControlledBoundaryPatternClippedBelowAbsoluteMinimum,
+        LargeBoundaryCutWithoutCornerOrSavingBand,
+        SmallBoundaryCutWithoutOppositeFullOrSeam,
+        DuplicatePhaseRemoved,
+        CandidateSearchTruncated,
+        DominatedByCandidate,
+        MultipleCandidatesRequireSelection
     }
 }

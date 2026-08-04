@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using TileLayout.Core.Models;
 
 namespace TileLayout.Core
@@ -18,7 +19,11 @@ namespace TileLayout.Core
             IList<LineSegment3D> divisionLines,
             IReadOnlyList<TileFootprint> tiles,
             IList<CandidateDiagnostic> diagnostics,
-            LayoutCandidateMetrics metrics)
+            LayoutCandidateMetrics metrics,
+            LayoutCandidateStructure structure = null,
+            IList<TileFootprintAssessment> tileAssessments = null,
+            IList<WallCornerAssessment> wallCornerAssessments = null,
+            IList<GridPhaseSource> phaseSources = null)
         {
             Id = id;
             IsDefault = isDefault;
@@ -31,6 +36,15 @@ namespace TileLayout.Core
             Diagnostics =
                 new ReadOnlyCollection<CandidateDiagnostic>(diagnostics);
             Metrics = metrics;
+            Structure = structure ?? LayoutCandidateStructure.Rectangular;
+            TileAssessments = new ReadOnlyCollection<TileFootprintAssessment>(
+                tileAssessments ?? new List<TileFootprintAssessment>());
+            WallCornerAssessments =
+                new ReadOnlyCollection<WallCornerAssessment>(
+                    wallCornerAssessments
+                        ?? new List<WallCornerAssessment>());
+            PhaseSources = new ReadOnlyCollection<GridPhaseSource>(
+                phaseSources ?? new List<GridPhaseSource>());
 
             var rejectionReasons = new List<CandidateDiagnostic>();
             foreach (CandidateDiagnostic diagnostic in diagnostics)
@@ -53,6 +67,38 @@ namespace TileLayout.Core
 
         public bool IsRejected => RejectionReasons.Count > 0;
 
+        public bool RequiresPolicyDecision
+        {
+            get
+            {
+                foreach (CandidateDiagnostic diagnostic in Diagnostics)
+                {
+                    if (diagnostic.Code ==
+                        CandidateDiagnosticCode.BelowDefaultMinimumRequiresPolicy
+                        || diagnostic.Code ==
+                            CandidateDiagnosticCode.BelowRecommendedMinimumRequiresReview
+                        || diagnostic.Code ==
+                            CandidateDiagnosticCode
+                                .SmallBoundaryCutWithoutOppositeFullOrSeam
+                        || diagnostic.Code ==
+                            CandidateDiagnosticCode.MultipleCandidatesRequireSelection)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
+
+        public bool RequiresProjectPolicy => Diagnostics.Any(diagnostic =>
+            diagnostic.Code == CandidateDiagnosticCode.BelowDefaultMinimumRequiresPolicy);
+
+        public bool RequiresUserReview => Diagnostics.Any(diagnostic =>
+            diagnostic.Code == CandidateDiagnosticCode.BelowRecommendedMinimumRequiresReview
+            || diagnostic.Code == CandidateDiagnosticCode
+                .SmallBoundaryCutWithoutOppositeFullOrSeam);
+
         public string SelectionReason { get; }
 
         public IReadOnlyList<BoundaryBandPlan> AxisPlans => axisPlans;
@@ -67,18 +113,41 @@ namespace TileLayout.Core
 
         public LayoutCandidateMetrics Metrics { get; }
 
+        public LayoutCandidateStructure Structure { get; }
+
+        public IReadOnlyList<TileFootprintAssessment> TileAssessments { get; }
+
+        public IReadOnlyList<WallCornerAssessment> WallCornerAssessments { get; }
+
+        public IReadOnlyList<GridPhaseSource> PhaseSources { get; }
+
         public BoundaryBandPlan GetAxisPlan(TileLayoutAxis axis)
         {
-            foreach (BoundaryBandPlan plan in axisPlans)
+            BoundaryBandPlan plan;
+            if (TryGetAxisPlan(axis, out plan))
             {
-                if (plan.Axis == axis)
-                {
-                    return plan;
-                }
+                return plan;
             }
 
             throw new InvalidOperationException(
                 "The candidate does not contain a plan for the requested axis.");
+        }
+
+        public bool TryGetAxisPlan(
+            TileLayoutAxis axis,
+            out BoundaryBandPlan plan)
+        {
+            foreach (BoundaryBandPlan candidatePlan in axisPlans)
+            {
+                if (candidatePlan.Axis == axis)
+                {
+                    plan = candidatePlan;
+                    return true;
+                }
+            }
+
+            plan = null;
+            return false;
         }
     }
 }

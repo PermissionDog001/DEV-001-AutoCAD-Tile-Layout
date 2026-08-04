@@ -49,6 +49,9 @@ namespace TileLayout.AutoCAD.Adapter
 
         public bool CanFlip => layout.FlippedCandidate != null;
 
+        public bool IsWriteAuthorized =>
+            State == DoorLayoutInteractionState.Accepted;
+
         public void Apply(DoorLayoutInteractionAction action)
         {
             if (State != DoorLayoutInteractionState.Previewing)

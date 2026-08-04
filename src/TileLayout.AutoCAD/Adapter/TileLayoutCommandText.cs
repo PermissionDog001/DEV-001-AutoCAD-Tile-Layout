@@ -9,6 +9,9 @@ namespace TileLayout.AutoCAD.Adapter
 {
     public static class TileLayoutCommandText
     {
+        public const string DoorObjectSelectionPrompt =
+            "\n请选择一个模型空间顶层门块（动态块或受支持静态块；Esc 取消命令）：";
+
         public static string FormatValidationFailure(RectangleValidationResult validation)
         {
             if (validation == null)
@@ -153,6 +156,53 @@ namespace TileLayout.AutoCAD.Adapter
                 CultureInfo.InvariantCulture,
                 "门洞两点无效：{0} 请重新选择；未生成任何对象。",
                 projection.ErrorMessage);
+        }
+
+        public static string FormatDoorObjectRecognitionSuccess(
+            DoorObjectRecognitionResult recognition)
+        {
+            if (recognition == null)
+            {
+                throw new ArgumentNullException(nameof(recognition));
+            }
+
+            if (!recognition.IsHigh)
+            {
+                throw new ArgumentException(
+                    "Only a High door-object result can be formatted as success.",
+                    nameof(recognition));
+            }
+
+            string source = recognition.Route
+                == DoorBlockRecognitionRoute.FrozenStaticSignature
+                ? "静态块冻结双线门几何签名"
+                : "动态块单扇平开门线弧签名";
+            return "对象辅助识别：High；已由唯一" + source
+                + "取得门洞端点，并通过现有两点适配验证。";
+        }
+
+        public static string FormatDoorObjectRecognitionFailure(
+            DoorObjectRecognitionResult recognition)
+        {
+            if (recognition == null)
+            {
+                throw new ArgumentNullException(nameof(recognition));
+            }
+
+            if (recognition.IsHigh)
+            {
+                throw new ArgumentException(
+                    "A High door-object result cannot be formatted as failure.",
+                    nameof(recognition));
+            }
+
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "对象辅助识别未采用：{0}（{1}）。{2} 已回退到现有门洞两点输入；"
+                    + "房间边界、砖规格和所选对象均未修改。",
+                recognition.Status,
+                recognition.RejectionCode,
+                recognition.Reason);
         }
 
         public static string FormatDoorOpeningSummary(
@@ -471,6 +521,22 @@ namespace TileLayout.AutoCAD.Adapter
                         CultureInfo.InvariantCulture,
                         "{0}自然窄余量 {1} mm 已按半砖/过渡砖重分配"
                             + "（默认下限 {2} mm）",
+                        axis,
+                        FormatOptionalNumber(diagnostic.ActualValue),
+                        FormatOptionalNumber(diagnostic.Threshold));
+                case CandidateDiagnosticCode.OrthogonalClipRedistributed:
+                    return string.Format(
+                        CultureInfo.InvariantCulture,
+                        "{0}异形裁切后边界带 {1} mm 小于下限 {2} mm，"
+                            + "已按半砖/过渡砖重新分配并复核完整房间",
+                        axis,
+                        FormatOptionalNumber(diagnostic.ActualValue),
+                        FormatOptionalNumber(diagnostic.Threshold));
+                case CandidateDiagnosticCode.OrthogonalClipAlongWallFlipped:
+                    return string.Format(
+                        CultureInfo.InvariantCulture,
+                        "{0}沿墙分配经异形裁切后形成 {1} mm 窄带，"
+                            + "已切换到另一控制侧并复核完整房间（下限 {2} mm）",
                         axis,
                         FormatOptionalNumber(diagnostic.ActualValue),
                         FormatOptionalNumber(diagnostic.Threshold));

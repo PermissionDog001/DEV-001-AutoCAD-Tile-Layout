@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using TileLayout.AutoCAD.Adapter;
@@ -160,6 +161,32 @@ namespace TileLayout.Core.Tests
         }
 
         [TestMethod]
+        public void FormatOrthogonalSuccess_ComplexSteppedRoom_ReportsFinalInteriorFragments()
+        {
+            OrthogonalRoomValidationResult validation =
+                OrthogonalRoomValidator.Validate(
+                    OrthogonalRoomValidatorTests.LinesFromVertices(
+                        OrthogonalRoomValidatorTests.ComplexSteppedRoomVertices(
+                            0.0,
+                            0.0)));
+            OrthogonalTileLayoutResult layout =
+                OrthogonalTileGridCalculator.Calculate(
+                    validation.Room,
+                    new TileLayoutParameters(600.0, 600.0));
+
+            string message = TileLayoutCommandText.FormatOrthogonalSuccess(
+                layout,
+                "TILE_LAYOUT_ORTHO");
+
+            Assert.AreEqual(
+                "正交房间排版完成：砖宽=600 mm，砖高=600 mm，包围盒网格锚点=西南，"
+                    + "网格方向=西→东/南→北，包围盒宽=4800 mm，高=4200 mm，"
+                    + "X/Y 完整模数=8/7，包围盒东侧余量=0 mm，北侧余量=0 mm；"
+                    + "已在图层 TILE_LAYOUT_ORTHO 生成 16 条最终室内分格片段。",
+                message);
+        }
+
+        [TestMethod]
         public void FormatDoorProjectionFailure_DifferentWalls_ExplainsRetryAndNoWrite()
         {
             var room = new AxisAlignedRectangle(0.0, 1300.0, 0.0, 1300.0);
@@ -173,6 +200,75 @@ namespace TileLayout.Core.Tests
                 "门洞两点无效：两个门洞端点必须位于同一面房间墙。 "
                     + "请重新选择；未生成任何对象。",
                 TileLayoutCommandText.FormatDoorProjectionFailure(projection));
+        }
+
+        [TestMethod]
+        public void FormatDoorObjectRecognitionFailure_ReportsCodeAndFallback()
+        {
+            DoorObjectRecognitionResult recognition =
+                DoorObjectRecognitionResult.Rejected(
+                    DoorObjectRecognitionStatus.Unsupported,
+                    DoorObjectRecognitionRejectionCode.StaticBlock,
+                    "所选块不是动态块；静态块首轮不支持。");
+
+            string message =
+                TileLayoutCommandText.FormatDoorObjectRecognitionFailure(
+                    recognition);
+
+            StringAssert.Contains(message, "Unsupported（StaticBlock）");
+            StringAssert.Contains(message, "已回退到现有门洞两点输入");
+            StringAssert.Contains(message, "均未修改");
+        }
+
+        [TestMethod]
+        public void DoorObjectSelectionPrompt_ExplicitlyIncludesSupportedStaticBlocks()
+        {
+            StringAssert.Contains(
+                TileLayoutCommandText.DoorObjectSelectionPrompt,
+                "动态块或受支持静态块");
+            StringAssert.Contains(
+                TileLayoutCommandText.DoorObjectSelectionPrompt,
+                "模型空间顶层门块");
+        }
+
+        [TestMethod]
+        public void FormatDoorObjectRecognitionSuccess_StaticRoute_ReportsFrozenSignature()
+        {
+            DoorObjectRecognitionResult recognition =
+                DoorObjectRecognitionCoordinator.Recognize(
+                    new AxisAlignedRectangle(0.0, 2000.0, 0.0, 2000.0),
+                    new[]
+                    {
+                        new LineSegment3D(
+                            new Point3D(975.0, 0.0),
+                            new Point3D(975.0, 50.0)),
+                        new LineSegment3D(
+                            new Point3D(0.0, 0.0),
+                            new Point3D(0.0, 50.0)),
+                        new LineSegment3D(
+                            new Point3D(0.0, 0.0),
+                            new Point3D(975.0, 0.0)),
+                        new LineSegment3D(
+                            new Point3D(0.0, 50.0),
+                            new Point3D(975.0, 50.0))
+                    },
+                    new[]
+                    {
+                        new ArcSegment3D(
+                            new Point3D(0.0, 25.0),
+                            new Point3D(0.0, 1000.0),
+                            new Point3D(
+                                Math.Sqrt((975.0 * 975.0) - (25.0 * 25.0)),
+                                50.0),
+                            975.0)
+                    },
+                    DoorBlockRecognitionRoute.FrozenStaticSignature);
+
+            string message = TileLayoutCommandText
+                .FormatDoorObjectRecognitionSuccess(recognition);
+
+            StringAssert.Contains(message, "静态块冻结双线门几何签名");
+            StringAssert.Contains(message, "现有两点适配验证");
         }
 
         [TestMethod]

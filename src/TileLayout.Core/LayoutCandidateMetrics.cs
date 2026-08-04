@@ -12,7 +12,16 @@ namespace TileLayout.Core
             int phaseResetCount,
             long continuousIrregularTileCount,
             int firstSightlinePenalty,
-            int keyAlignmentCount)
+            int keyAlignmentCount,
+            long belowProjectAbsoluteMinimumBoundaryTileCount = 0,
+            long projectReviewBoundaryTileCount = 0,
+            int optimizationTargetCornerCount = 0,
+            int exactGridIntersectionCornerCount = 0,
+            int exactSeamAlignedCornerCount = 0,
+            int safeDoubleWallCornerAlignmentCount = 0,
+            int safeSingleWallCornerAlignmentCount = 0,
+            long entranceVisualBelowRecommendedBoundaryTileCount = 0,
+            long entranceBlindBelowRecommendedBoundaryTileCount = 0)
         {
             InteriorNonFullTileCount = interiorNonFullTileCount;
             InteriorNonFullTileArea = interiorNonFullTileArea;
@@ -25,6 +34,19 @@ namespace TileLayout.Core
             ContinuousIrregularTileCount = continuousIrregularTileCount;
             FirstSightlinePenalty = firstSightlinePenalty;
             KeyAlignmentCount = keyAlignmentCount;
+            BelowProjectAbsoluteMinimumBoundaryTileCount =
+                belowProjectAbsoluteMinimumBoundaryTileCount;
+            ProjectReviewBoundaryTileCount = projectReviewBoundaryTileCount;
+            OptimizationTargetCornerCount = optimizationTargetCornerCount;
+            ExactGridIntersectionCornerCount =
+                exactGridIntersectionCornerCount;
+            ExactSeamAlignedCornerCount = exactSeamAlignedCornerCount;
+            SafeDoubleWallCornerAlignmentCount = safeDoubleWallCornerAlignmentCount;
+            SafeSingleWallCornerAlignmentCount = safeSingleWallCornerAlignmentCount;
+            EntranceVisualBelowRecommendedBoundaryTileCount =
+                entranceVisualBelowRecommendedBoundaryTileCount;
+            EntranceBlindBelowRecommendedBoundaryTileCount =
+                entranceBlindBelowRecommendedBoundaryTileCount;
         }
 
         public long InteriorNonFullTileCount { get; }
@@ -46,5 +68,23 @@ namespace TileLayout.Core
         public int FirstSightlinePenalty { get; }
 
         public int KeyAlignmentCount { get; }
+
+        public long BelowProjectAbsoluteMinimumBoundaryTileCount { get; }
+
+        public long ProjectReviewBoundaryTileCount { get; }
+
+        public int OptimizationTargetCornerCount { get; }
+
+        public int ExactGridIntersectionCornerCount { get; }
+
+        public int ExactSeamAlignedCornerCount { get; }
+
+        public int SafeDoubleWallCornerAlignmentCount { get; }
+
+        public int SafeSingleWallCornerAlignmentCount { get; }
+
+        public long EntranceVisualBelowRecommendedBoundaryTileCount { get; }
+
+        public long EntranceBlindBelowRecommendedBoundaryTileCount { get; }
     }
 }

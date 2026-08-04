@@ -3,6 +3,8 @@ namespace TileLayout.Core
     public enum DoorControlledAxisRole
     {
         DoorNormal,
-        AlongWall
+        AlongWall,
+        SecondaryFromConnection,
+        WholeRoomPhase
     }
 }

@@ -6,6 +6,78 @@ namespace TileLayout.Core
 {
     public static class OrthogonalTileGridCalculator
     {
+        internal static List<LineSegment3D> ClipDivisionLines(
+            AxisAlignedOrthogonalPolygon room,
+            IList<double> verticalCoordinates,
+            IList<double> horizontalCoordinates)
+        {
+            if (room == null)
+            {
+                throw new ArgumentNullException(nameof(room));
+            }
+
+            int maximum = TileLayoutRules.MaximumParameterizedDivisionLineCount;
+            int count = 0;
+            foreach (double coordinate in verticalCoordinates)
+            {
+                count = AddCheckedCount(
+                    count,
+                    GetInteriorIntervals(room, coordinate, true).Count,
+                    maximum);
+            }
+
+            foreach (double coordinate in horizontalCoordinates)
+            {
+                count = AddCheckedCount(
+                    count,
+                    GetInteriorIntervals(room, coordinate, false).Count,
+                    maximum);
+            }
+
+            var result = new List<LineSegment3D>(count);
+            foreach (double coordinate in verticalCoordinates)
+            {
+                foreach (Interval interval in GetInteriorIntervals(
+                    room,
+                    coordinate,
+                    true))
+                {
+                    result.Add(
+                        new LineSegment3D(
+                            new Point3D(
+                                coordinate,
+                                interval.Start,
+                                room.Elevation),
+                            new Point3D(
+                                coordinate,
+                                interval.End,
+                                room.Elevation)));
+                }
+            }
+
+            foreach (double coordinate in horizontalCoordinates)
+            {
+                foreach (Interval interval in GetInteriorIntervals(
+                    room,
+                    coordinate,
+                    false))
+                {
+                    result.Add(
+                        new LineSegment3D(
+                            new Point3D(
+                                interval.Start,
+                                coordinate,
+                                room.Elevation),
+                            new Point3D(
+                                interval.End,
+                                coordinate,
+                                room.Elevation)));
+                }
+            }
+
+            return result;
+        }
+
         public static OrthogonalTileLayoutResult Calculate(
             AxisAlignedOrthogonalPolygon room,
             TileLayoutParameters parameters)

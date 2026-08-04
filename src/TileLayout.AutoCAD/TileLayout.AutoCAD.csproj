@@ -52,6 +52,8 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
   </ItemGroup>
 
   <ItemGroup>
@@ -62,8 +64,22 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="Adapter\DoorBlockInputPolicy.cs" />
     <Compile Include="Adapter\DoorLayoutPreviewSession.cs" />
+    <Compile Include="Adapter\DoorObjectRecognition.cs" />
+    <Compile Include="Adapter\DoorOpeningInputSession.cs" />
     <Compile Include="Adapter\DoorOpeningPointAdapter.cs" />
+    <Compile Include="Adapter\GuidedBoundaryPolylineConverter.cs" />
+    <Compile Include="Adapter\DynamicDoorBlockGeometryReader.cs" />
+    <Compile Include="Adapter\OrthogonalDecisionPaletteControl.cs" />
+    <Compile Include="Adapter\OrthogonalDecisionPaletteHost.cs" />
+    <Compile Include="Adapter\OrthogonalDecisionGuidedText.cs" />
+    <Compile Include="Adapter\OrthogonalDecisionGuidedWorkflow.cs" />
+    <Compile Include="Adapter\OrthogonalDecisionInputSession.cs" />
+    <Compile Include="Adapter\OrthogonalLayoutTransientPreview.cs" />
+    <Compile Include="Adapter\OrthogonalDecisionPaletteSession.cs" />
+    <Compile Include="Adapter\OrthogonalDecisionPaletteText.cs" />
+    <Compile Include="Adapter\OrthogonalLayoutWritebackPolicy.cs" />
     <Compile Include="Adapter\TileLayoutCommandText.cs" />
     <Compile Include="Commands\TileLayoutCommands.cs" />
     <Compile Include="FormalPluginEntry.cs" />

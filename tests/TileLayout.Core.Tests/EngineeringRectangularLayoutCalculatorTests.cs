@@ -54,6 +54,84 @@ namespace TileLayout.Core.Tests
         }
 
         [TestMethod]
+        public void Calculate_GroutAddsPitchButKeepsNominalTileAndWallHalfGap()
+        {
+            var parameters = new EngineeringRectangularLayoutParameters(
+                600.0,
+                600.0,
+                new DoorOpening(RoomSide.West, 700.0, 1300.0),
+                1.5);
+            EngineeringRectangularLayoutResult result =
+                EngineeringRectangularLayoutCalculator.Calculate(
+                    new AxisAlignedRectangle(
+                        0.0,
+                        1804.5,
+                        0.0,
+                        1804.5),
+                    parameters);
+
+            Assert.IsTrue(result.IsSuccessful);
+            BoundaryBandPlan xPlan =
+                result.DefaultCandidate.GetAxisPlan(TileLayoutAxis.X);
+            BoundaryBandPlan yPlan =
+                result.DefaultCandidate.GetAxisPlan(TileLayoutAxis.Y);
+            Assert.AreEqual(601.5, xPlan.GridTileSize,
+                GeometryTolerance.Coordinate);
+            Assert.AreEqual(601.5, yPlan.GridTileSize,
+                GeometryTolerance.Coordinate);
+            Assert.AreEqual(3, xPlan.SegmentWidths.Count);
+            Assert.AreEqual(3, yPlan.SegmentWidths.Count);
+            Assert.IsTrue(xPlan.SegmentWidths.All(width =>
+                Math.Abs(width - 601.5)
+                    <= GeometryTolerance.Coordinate));
+            Assert.IsTrue(yPlan.SegmentWidths.All(width =>
+                Math.Abs(width - 601.5)
+                    <= GeometryTolerance.Coordinate));
+
+            TileFootprint firstTile = result.DefaultCandidate.Tiles[0];
+            Assert.AreEqual(600.0, firstTile.NominalWidth,
+                GeometryTolerance.Coordinate);
+            Assert.AreEqual(600.0, firstTile.NominalHeight,
+                GeometryTolerance.Coordinate);
+            Assert.AreEqual(0.75, firstTile.Outline.Min(point => point.X),
+                GeometryTolerance.Coordinate);
+            Assert.AreEqual(600.75, firstTile.Outline.Max(point => point.X),
+                GeometryTolerance.Coordinate);
+            Assert.AreEqual(0.75, firstTile.Outline.Min(point => point.Y),
+                GeometryTolerance.Coordinate);
+            Assert.AreEqual(600.75, firstTile.Outline.Max(point => point.Y),
+                GeometryTolerance.Coordinate);
+        }
+
+        [TestMethod]
+        public void Calculate_GroutOccupancyIsNotCountedAsBoundaryCut()
+        {
+            var parameters = new EngineeringRectangularLayoutParameters(
+                600.0,
+                600.0,
+                new DoorOpening(RoomSide.West, 700.0, 1300.0),
+                1.5);
+            EngineeringRectangularLayoutResult result =
+                EngineeringRectangularLayoutCalculator.Calculate(
+                    new AxisAlignedRectangle(
+                        0.0,
+                        1504.5,
+                        0.0,
+                        1804.5),
+                    parameters);
+
+            Assert.IsTrue(result.IsSuccessful);
+            BoundaryBandPlan xPlan =
+                result.DefaultCandidate.GetAxisPlan(TileLayoutAxis.X);
+            Assert.AreEqual(300.0,
+                xPlan.GetBoundary(RoomSide.East).Width,
+                GeometryTolerance.Coordinate);
+            Assert.AreEqual(0L,
+                result.DefaultCandidate.Metrics
+                    .BelowDefaultMinimumBoundaryTileCount);
+        }
+
+        [TestMethod]
         public void Calculate_ArtificialSample02_AssignsDoorNormalAndAlongWallBands()
         {
             EngineeringRectangularLayoutResult result = Calculate(

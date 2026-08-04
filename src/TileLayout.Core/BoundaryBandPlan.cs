@@ -18,11 +18,15 @@ namespace TileLayout.Core
             int fullTileCount,
             int interiorFullTileCount,
             bool usesRedistribution,
-            IList<double> segmentWidths)
+            IList<double> segmentWidths,
+            double gridTileSize = double.NaN)
         {
             Axis = axis;
             Role = role;
             TileSize = tileSize;
+            GridTileSize = double.IsNaN(gridTileSize)
+                ? tileSize
+                : gridTileSize;
             NaturalRemainder = naturalRemainder;
             ControlSide = controlSide;
             ConstructionStartSide = constructionStartSide;
@@ -39,6 +43,12 @@ namespace TileLayout.Core
         public DoorControlledAxisRole Role { get; }
 
         public double TileSize { get; }
+
+        /// <summary>
+        /// The geometric grid pitch.  TileSize remains the nominal physical
+        /// tile size used by G3 cut rules.
+        /// </summary>
+        public double GridTileSize { get; }
 
         public double NaturalRemainder { get; }
 
