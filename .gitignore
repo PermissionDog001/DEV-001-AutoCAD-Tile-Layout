@@ -47,6 +47,7 @@ work/*
 *.dwl
 *.dwl2
 *.ac$
+acad.err
 
 # Windows
 Thumbs.db
