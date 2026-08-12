@@ -2,7 +2,7 @@
 
 这是一个运行在 Autodesk AutoCAD 2021 中的 C# Managed .NET 插件。它根据房间边界生成地砖排版方案，先提供图面预览，只有用户明确确认后才把结果写入图纸。
 
-当前版本：`v0.2.1`（本地发布候选包已准备，尚未创建远程 Release）
+正式版本：`v0.2.1`
 
 适用环境：Windows x64、AutoCAD 2021、.NET Framework 4.8
 
@@ -34,7 +34,7 @@
 
 ## 安装和使用
 
-1. 使用项目内 [v0.2.1 本地发布候选包](dist/TileLayout-0.2.1.zip)；远程 Release 尚未创建。
+1. 从 [GitHub Release v0.2.1](https://github.com/PermissionDog001/DEV-001-AutoCAD-Tile-Layout/releases/tag/v0.2.1) 下载 `TileLayout-0.2.1.zip`。
 2. 解压后，在 AutoCAD 2021 中执行 `NETLOAD`，选择 `TileLayout.AutoCAD.dll`。
 3. 进入模型空间，执行 `TILEUI`。
 4. 按窗口顺序选择房间边界、输入砖尺寸和灰缝，必要时输入抹灰厚度并选择门洞。

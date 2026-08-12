@@ -332,4 +332,4 @@ G3 当前基线为 Debug/Release Core `304/304`，算法与同源零写入预览
 - V0.2.1 功能范围包括项目规则比例 UI、DOR9-C 灰缝候选恢复、自动尺寸标注和自动起铺点标志；程序集版本为 `0.2.1.0`。
 - 已准备本地最小发布包 `dist/TileLayout-0.2.1.zip`、包内说明和 SHA-256 清单，发布明细见 [release-v0.2.1.md](release-v0.2.1.md)。历史版本包未覆盖。
 - 已固化 `tools/Invoke-CoreReflectionTests.ps1`，用于 Debug/Release 的可复现 Core 回归；标准 .NET Framework VSTest 宿主发现限制按已知限制记录。
-- 当前只完成本地发布准备和 Git 基线整理，不包含远程推送、标签、PR 或 GitHub Release。
+- V0.2.1 面向用户的更新说明已清理，本地包已准备；当前等待推送 `origin/main`、创建 `v0.2.1` 标签和 GitHub Release。本次不创建 PR。

@@ -6,7 +6,7 @@
 - 项目名称：AutoCAD瓷砖自动排版插件
 - 创建日期：2026-07-19
 - 项目目录：`E:\Workspace\Development\DEV-001-AutoCAD瓷砖自动排版插件`
-- 当前状态：DOR9 灰缝、闭合多段线、抹灰完成面、界面、自动尺寸标注和自动起铺点已完成；用户已确认 AutoCAD 2021 实机验证达到预期效果。`v0.2.1` 本地发布候选包、校验清单和文档已准备，当前工作树将建立本次发布基线；尚未推送、打标签或创建远程 Release。历史阶段记录继续保留，自动化证据与用户宿主确认分开记录。
+- 当前状态：V0.2.1 功能已完成，用户已确认 AutoCAD 2021 实机验证达到预期效果；面向用户的更新说明已清理，当前正在执行 GitHub 推送和 Release 发布。历史阶段记录继续保留，面向用户的更新说明与内部开发记录分开维护。
 - 路线图与测试预算：`docs/development-roadmap.md`
 - DOR9-A 规则草案：`docs/dor9-grout-polyline-plaster.md`
 - 已实现阶段总账：`docs/implementation-ledger.md`
@@ -901,4 +901,4 @@ G3 算法、推荐下限等号组合资格门、候选保留/分组和同源零�
 - 已将程序集版本固定为 `0.2.1.0`，生成 `dist/TileLayout-0.2.1/`、压缩包和 SHA-256 校验清单；包只包含两个运行程序集和中文使用说明，不包含 Autodesk Managed DLL、PDB、测试组件、DWG、缓存或日志。
 - 发布说明见 [docs/release-v0.2.1.md](docs/release-v0.2.1.md)，本地交付目录说明见 [dist/README.md](dist/README.md)。旧 `v0.1.0`、`v0.2.0` 包保持不变。
 - 已补充 `tools/Invoke-CoreReflectionTests.ps1`，将当前可复现的 Debug/Release Core 反射回归命令固化为项目工具；标准 VSTest 宿主限制继续如实记录，不冒充标准 `dotnet test` 通过。
-- 本次用户授权范围包含文档更新、Git 基线提交和工作树整理；截至本节记录，尚未推送、打标签、创建 PR 或创建远程 GitHub Release。
+- 本次用户授权范围包含文档更新、Git 基线提交、推送 `origin/main`、创建 `v0.2.1` 标签和 GitHub Release；当前文档和本地包已准备，远程操作尚未完成。未创建 PR。
