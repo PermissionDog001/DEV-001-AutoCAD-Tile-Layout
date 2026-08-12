@@ -902,3 +902,11 @@ G3 算法、推荐下限等号组合资格门、候选保留/分组和同源零�
 - 发布说明见 [docs/release-v0.2.1.md](docs/release-v0.2.1.md)，本地交付目录说明见 [dist/README.md](dist/README.md)。旧 `v0.1.0`、`v0.2.0` 包保持不变。
 - 已补充 `tools/Invoke-CoreReflectionTests.ps1`，将当前可复现的 Debug/Release Core 反射回归命令固化为项目工具；标准 VSTest 宿主限制继续如实记录，不冒充标准 `dotnet test` 通过。
 - 本次用户授权范围已完成：文档更新、Git 基线提交、推送 `origin/main`、创建 `v0.2.1` 标签和 GitHub Release。Release 地址为 <https://github.com/PermissionDog001/DEV-001-AutoCAD-Tile-Layout/releases/tag/v0.2.1>；未创建 PR。
+
+## 74. V0.2.1 发布内容维护：贴墙边界线贯通（2026-08-12）
+
+- 用户反馈：紧贴抹灰完成面的边界线原先按单块砖边界拆成多个线段，用户删除或调整时需要重复选择。
+- 修复：在生成贴墙灰缝边界后，对同一直线、同一标高且相邻间隙不超过灰缝宽度的线段进行合并；内部砖缝和其它分割线保持原有逐段表达。
+- 回归：新增“贴墙灰缝边界贯通”测试；Debug/Release 反射回归均为 `347/347`，Core、测试项目和 AutoCAD 适配项目 Debug/Release 构建通过。
+- 发布内容：更新 V0.2.1 用户说明、交付目录、压缩包和 SHA-256 清单，并同步修改既有 GitHub Release 的说明和附件；不新增版本号、不移动 `v0.2.1` 标签、不创建新 Release。
+- 本轮未重新进行 AutoCAD 2021 实机操作；已完成宿主无关回归和插件构建，实机可在下一次使用中重点确认贴墙边界线可整体选择、删除和调整。

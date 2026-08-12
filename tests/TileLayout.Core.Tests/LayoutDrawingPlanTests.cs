@@ -536,6 +536,28 @@ namespace TileLayout.Core.Tests
         }
 
         [TestMethod]
+        public void DOR9WallGroutBoundariesAreMergedIntoContinuousEdges()
+        {
+            EngineeringOrthogonalDecisionResult result =
+                RectangularFinishedFaceWithGrout();
+            EvaluatedLayoutCandidate selected = result.Candidates.First(
+                item => item.HasRawCandidate);
+            LayoutDrawingPlan plan = LayoutDrawingPlanBuilder.Build(
+                result,
+                selected.Id);
+
+            var wallGroutLines = plan.DivisionLines
+                .Where(line =>
+                    line.Semantic == LayoutDrawingLineSemantic.GroutBoundary
+                    && IsWallGroutBoundary(plan, line.Geometry))
+                .ToList();
+
+            Assert.AreEqual(4, wallGroutLines.Count);
+            Assert.IsTrue(wallGroutLines.All(line =>
+                SegmentLength(line.Geometry) > 1000.0));
+        }
+
+        [TestMethod]
         public void DOR8ManualReviewCanWriteAfterWarningWithoutReason()
         {
             EngineeringOrthogonalDecisionResult result = L04(1690, 1890, 200);
@@ -892,6 +914,29 @@ namespace TileLayout.Core.Tests
                     source));
         }
 
+        private static EngineeringOrthogonalDecisionResult
+            RectangularFinishedFaceWithGrout()
+        {
+            AxisAlignedOrthogonalPolygon source = Room(
+                P(0, 0), P(2400, 0), P(2400, 3600), P(0, 3600));
+            return EngineeringOrthogonalDecisionCalculator.Calculate(
+                new EngineeringOrthogonalDecisionRequest(
+                    source,
+                    600,
+                    600,
+                    new LayoutPolicyProfile("P-1"),
+                    new RoomDecision(
+                        new AxisAlignedRectangle(100, 2300, 100, 3500),
+                        new DoorOpening(RoomSide.North, 700, 1300),
+                        RoomLayoutIntent.WholeRoomSinglePhase),
+                    null,
+                    LayoutDecisionMode.ControlledProduction,
+                    false,
+                    1.5,
+                    100,
+                    source));
+        }
+
         private static EngineeringOrthogonalDecisionResult L01RightHandDoor(
             RoomSide wall)
         {
@@ -986,6 +1031,61 @@ namespace TileLayout.Core.Tests
         private static bool Nearly(double first, double second)
         {
             return Math.Abs(first - second) <= GeometryTolerance.Coordinate;
+        }
+
+        private static bool IsWallGroutBoundary(
+            LayoutDrawingPlan plan,
+            LineSegment3D line)
+        {
+            double halfGrout = plan.GroutWidthMm / 2.0;
+            bool lineVertical = Nearly(line.Start.X, line.End.X);
+            double lineFixed = lineVertical
+                ? line.Start.X
+                : line.Start.Y;
+            double lineLow = lineVertical
+                ? Math.Min(line.Start.Y, line.End.Y)
+                : Math.Min(line.Start.X, line.End.X);
+            double lineHigh = lineVertical
+                ? Math.Max(line.Start.Y, line.End.Y)
+                : Math.Max(line.Start.X, line.End.X);
+
+            for (int index = 0; index < plan.RoomOutline.Count; index++)
+            {
+                Point3D start = plan.RoomOutline[index];
+                Point3D end = plan.RoomOutline[
+                    (index + 1) % plan.RoomOutline.Count];
+                bool edgeVertical = Nearly(start.X, end.X);
+                if (edgeVertical != lineVertical)
+                {
+                    continue;
+                }
+
+                double expectedFixed = edgeVertical
+                    ? start.X + (end.Y > start.Y ? -halfGrout : halfGrout)
+                    : start.Y + (end.X > start.X ? halfGrout : -halfGrout);
+                if (!Nearly(lineFixed, expectedFixed))
+                {
+                    continue;
+                }
+
+                double edgeLow = edgeVertical
+                    ? Math.Min(start.Y, end.Y)
+                    : Math.Min(start.X, end.X);
+                double edgeHigh = edgeVertical
+                    ? Math.Max(start.Y, end.Y)
+                    : Math.Max(start.X, end.X);
+                return lineLow < edgeHigh + GeometryTolerance.Coordinate
+                    && lineHigh > edgeLow - GeometryTolerance.Coordinate;
+            }
+
+            return false;
+        }
+
+        private static double SegmentLength(LineSegment3D line)
+        {
+            return Math.Sqrt(
+                Math.Pow(line.End.X - line.Start.X, 2.0)
+                + Math.Pow(line.End.Y - line.Start.Y, 2.0));
         }
 
         private static void AssertThrows<TException>(Action action)

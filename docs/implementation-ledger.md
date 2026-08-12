@@ -333,3 +333,10 @@ G3 当前基线为 Debug/Release Core `304/304`，算法与同源零写入预览
 - 已准备本地最小发布包 `dist/TileLayout-0.2.1.zip`、包内说明和 SHA-256 清单，发布明细见 [release-v0.2.1.md](release-v0.2.1.md)。历史版本包未覆盖。
 - 已固化 `tools/Invoke-CoreReflectionTests.ps1`，用于 Debug/Release 的可复现 Core 回归；标准 .NET Framework VSTest 宿主发现限制按已知限制记录。
 - V0.2.1 面向用户的更新说明已清理，本地包已发布；`origin/main`、`v0.2.1` 标签和 GitHub Release 均已完成。本次不创建 PR。
+
+## 74. V0.2.1 发布内容维护：贴墙边界线贯通（2026-08-12）
+
+- 用户反馈：抹灰完成面旁的瓷砖边界线按砖尺寸切成多个线段，整体删除和调整不便。
+- Core 修复：`LayoutDrawingPlanBuilder` 只对 `BuildWallGroutBoundaries` 生成的贴墙灰缝边界做归一化合并；同方向、同固定坐标、同标高且线段间隙不超过灰缝宽度时合并为一条贯通线。内部 `candidate.DivisionLines` 不参与该合并，旧命令仍保持原行为。
+- 回归：`DOR9WallGroutBoundariesAreMergedIntoContinuousEdges` 覆盖四条矩形贴墙边界，Debug/Release 反射执行全部 `347/347`；Core、测试项目和 AutoCAD 适配项目 Debug/Release 构建通过。
+- 交付：更新 V0.2.1 发布说明、包内使用说明、交付目录说明、压缩包和 SHA-256 清单；仅维护现有 V0.2.1 发布内容，不改变程序集版本、标签或版本号。
