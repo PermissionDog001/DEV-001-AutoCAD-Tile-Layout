@@ -4,6 +4,7 @@ namespace TileLayout.Core
     {
         NotDecided,
         Numeric,
-        VisualConfirmation
+        VisualConfirmation,
+        NumericRatio
     }
 }

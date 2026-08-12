@@ -19,7 +19,9 @@ namespace TileLayout.Core
             int interiorFullTileCount,
             bool usesRedistribution,
             IList<double> segmentWidths,
-            double gridTileSize = double.NaN)
+            double gridTileSize = double.NaN,
+            double recommendedMinimumCutRatio =
+                EngineeringLayoutRules.DefaultMinimumCutRatio)
         {
             Axis = axis;
             Role = role;
@@ -36,6 +38,10 @@ namespace TileLayout.Core
             InteriorFullTileCount = interiorFullTileCount;
             UsesRedistribution = usesRedistribution;
             SegmentWidths = new ReadOnlyCollection<double>(segmentWidths);
+            EngineeringLayoutRules.ValidateMinimumCutRatio(
+                recommendedMinimumCutRatio,
+                nameof(recommendedMinimumCutRatio));
+            RecommendedMinimumCutRatio = recommendedMinimumCutRatio;
         }
 
         public TileLayoutAxis Axis { get; }
@@ -50,10 +56,12 @@ namespace TileLayout.Core
         /// </summary>
         public double GridTileSize { get; }
 
+        public double RecommendedMinimumCutRatio { get; }
+
         public double NaturalRemainder { get; }
 
         public double MinimumCut =>
-            TileSize * EngineeringLayoutRules.DefaultMinimumCutRatio;
+            TileSize * RecommendedMinimumCutRatio;
 
         public RoomSide ControlSide { get; }
 

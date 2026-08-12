@@ -64,6 +64,26 @@ namespace TileLayout.Core.Tests
         }
 
         [TestMethod]
+        public void ComplexRoomWithGroutKeepsSearchingAfterAnUnusableTileBody()
+        {
+            AxisAlignedOrthogonalPolygon room =
+                ComplexOrthogonalBoundaryFixture.CreateRoom();
+            EngineeringOrthogonalLayoutResult result = Calculate(
+                room,
+                ComplexOrthogonalBoundaryFixture.CreateControlRegion(),
+                ComplexOrthogonalBoundaryFixture.CreateDeterministicWestDoor(),
+                groutWidthMm: 1.5);
+
+            Assert.IsTrue(result.Candidates.Count > 0);
+            Assert.IsTrue(result.Candidates.Any(candidate =>
+                !candidate.IsRejected));
+            Assert.IsTrue(result.Candidates.Any(candidate =>
+                candidate.Diagnostics.Any(diagnostic =>
+                    diagnostic.Code ==
+                        CandidateDiagnosticCode.GroutTileBodyUnavailable)));
+        }
+
+        [TestMethod]
         public void CompleteRoomNarrowAlongWallRemainderUsesHalfTransitionPattern()
         {
             AxisAlignedOrthogonalPolygon room = Room(
@@ -626,7 +646,8 @@ namespace TileLayout.Core.Tests
             MainSecondaryRegionDefinition regions = null,
             IList<ConfirmedGridPhase> phases = null,
             double tileWidth = 600,
-            double tileHeight = 600)
+            double tileHeight = 600,
+            double groutWidthMm = 0.0)
         {
             return EngineeringOrthogonalLayoutCalculator.Calculate(
                 room,
@@ -636,7 +657,10 @@ namespace TileLayout.Core.Tests
                     control,
                     door,
                     regions,
-                    phases));
+                    phases,
+                    null,
+                    false,
+                    groutWidthMm));
         }
 
         private static AxisAlignedOrthogonalPolygon Room(params Point3D[] vertices)

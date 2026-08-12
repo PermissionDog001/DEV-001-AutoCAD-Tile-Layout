@@ -38,6 +38,13 @@ namespace TileLayout.AutoCAD.Adapter
             "TILE_LAYOUT_ORTHO_CONFIRMED";
         internal const short ConfirmedLayerColorIndex = 3;
         internal const string ConfirmedLayerLinetypeName = "Continuous";
+        internal const string DimensionLayerName = "TILE_LAYOUT_ORTHO_DIM";
+        internal const short DimensionLayerColorIndex = 2;
+        internal const short TileDimensionColorIndex = 2;
+        internal const short BoundaryFeatureDimensionColorIndex = 6;
+        internal const string StartPointLayerName =
+            "TILE_LAYOUT_ORTHO_START";
+        internal const short StartPointLayerColorIndex = 3;
         internal const string RoomRangeMetadataApplicationName =
             "TILE_ORTHO_ROOM";
         internal const string RoomRangeMetadataVersion = "ROOM_RANGE_V1";
@@ -108,6 +115,87 @@ namespace TileLayout.AutoCAD.Adapter
         {
             lines = null;
             rejectionReason = string.Empty;
+            if (!TryValidateFormalWriteback(
+                plan,
+                previewIsVisible,
+                confirmationAcknowledged,
+                allowsVisualConfirmation,
+                out rejectionReason))
+            {
+                return false;
+            }
+
+            var formalLines = new List<LayoutDrawingLine>(
+                plan.DivisionLines.Count + plan.Connections.Count);
+            formalLines.AddRange(plan.DivisionLines);
+            formalLines.AddRange(plan.Connections);
+            if (formalLines.Count == 0)
+            {
+                rejectionReason = "当前同源绘图计划没有正式分格线或连接边，无需写回。";
+                return false;
+            }
+
+            lines = new ReadOnlyCollection<LayoutDrawingLine>(formalLines);
+            return true;
+        }
+
+        internal static bool TryGetFormalDimensions(
+            LayoutDrawingPlan plan,
+            bool previewIsVisible,
+            bool confirmationAcknowledged,
+            bool allowsVisualConfirmation,
+            out IReadOnlyList<LayoutDrawingDimension> dimensions,
+            out string rejectionReason)
+        {
+            dimensions = null;
+            rejectionReason = string.Empty;
+            if (!TryValidateFormalWriteback(
+                plan,
+                previewIsVisible,
+                confirmationAcknowledged,
+                allowsVisualConfirmation,
+                out rejectionReason))
+            {
+                return false;
+            }
+
+            dimensions = new ReadOnlyCollection<LayoutDrawingDimension>(
+                new List<LayoutDrawingDimension>(plan.Dimensions));
+            return true;
+        }
+
+        internal static bool TryGetFormalStartPoint(
+            LayoutDrawingPlan plan,
+            bool previewIsVisible,
+            bool confirmationAcknowledged,
+            bool allowsVisualConfirmation,
+            out LayoutDrawingStartPoint startPoint,
+            out string rejectionReason)
+        {
+            startPoint = null;
+            rejectionReason = string.Empty;
+            if (!TryValidateFormalWriteback(
+                plan,
+                previewIsVisible,
+                confirmationAcknowledged,
+                allowsVisualConfirmation,
+                out rejectionReason))
+            {
+                return false;
+            }
+
+            startPoint = plan.StartPoint;
+            return true;
+        }
+
+        private static bool TryValidateFormalWriteback(
+            LayoutDrawingPlan plan,
+            bool previewIsVisible,
+            bool confirmationAcknowledged,
+            bool allowsVisualConfirmation,
+            out string rejectionReason)
+        {
+            rejectionReason = string.Empty;
             if (plan == null)
             {
                 rejectionReason = "当前没有可写回的同源绘图计划。";
@@ -136,17 +224,6 @@ namespace TileLayout.AutoCAD.Adapter
                 return false;
             }
 
-            var formalLines = new List<LayoutDrawingLine>(
-                plan.DivisionLines.Count + plan.Connections.Count);
-            formalLines.AddRange(plan.DivisionLines);
-            formalLines.AddRange(plan.Connections);
-            if (formalLines.Count == 0)
-            {
-                rejectionReason = "当前同源绘图计划没有正式分格线或连接边，无需写回。";
-                return false;
-            }
-
-            lines = new ReadOnlyCollection<LayoutDrawingLine>(formalLines);
             return true;
         }
     }

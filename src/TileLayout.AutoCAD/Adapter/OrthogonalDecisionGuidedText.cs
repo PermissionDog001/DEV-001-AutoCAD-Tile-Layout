@@ -37,7 +37,7 @@ namespace TileLayout.AutoCAD.Adapter
             {
                 case DecisionRequirementCode.ProjectSecondAbsoluteMinimum:
                     message = "项目铺贴规则中还没有确认允许的最小边砖宽度。";
-                    nextAction = "返回“确定铺贴要求”，填写已确认值或向项目负责人确认。";
+                    nextAction = "返回项目铺贴规则，填写最低尺寸或选择“按图面确认”。";
                     break;
                 case DecisionRequirementCode.RoomControlRegion:
                     message = "还没有标明这个门洞影响哪一块铺贴范围。";
@@ -49,7 +49,7 @@ namespace TileLayout.AutoCAD.Adapter
                     break;
                 case DecisionRequirementCode.RoomLayoutIntent:
                     message = "还没有选择整房连续铺贴或分区铺贴。";
-                    nextAction = "返回“确定铺贴要求”明确选择。";
+                    nextAction = "返回项目铺贴规则明确选择。";
                     break;
                 case DecisionRequirementCode.RoomMainSecondaryDefinition:
                     message = "主要铺贴区和相邻铺贴区尚未选全，程序不会按凹角或面积猜测。";
@@ -312,7 +312,7 @@ namespace TileLayout.AutoCAD.Adapter
                     result = "低于推荐值（待项目复核）";
                     break;
                 case LayoutCandidateState.RequiresProjectPolicy:
-                    result = "项目绝对下限尚未确认";
+                    result = "项目最低尺寸待处理";
                     break;
                 case LayoutCandidateState.InputUntrusted:
                     result = "不可使用（输入不能可靠验证）";
@@ -356,7 +356,9 @@ namespace TileLayout.AutoCAD.Adapter
         public static string FormatCandidateReason(
             EvaluatedLayoutCandidate evaluated,
             double tileWidth = double.NaN,
-            double tileHeight = double.NaN)
+            double tileHeight = double.NaN,
+            double recommendedMinimumCutRatio =
+                EngineeringLayoutRules.GuidedDefaultMinimumCutRatio)
         {
             if (evaluated == null)
             {
@@ -395,6 +397,15 @@ namespace TileLayout.AutoCAD.Adapter
             if (evaluated.State == LayoutCandidateState.Eliminated
                 && evaluated.HasRawCandidate)
             {
+                CandidateDiagnostic groutTileBody = evaluated.Candidate
+                    .RejectionReasons.FirstOrDefault(item =>
+                        item.Code == CandidateDiagnosticCode
+                            .GroutTileBodyUnavailable);
+                if (groutTileBody != null)
+                {
+                    return "按当前灰缝宽度，某个排版位置的边砖没有足够空间保留实体砖体，因此本方案已淘汰；请比较其它方案，或返回“铺贴方式”调整排版相位。";
+                }
+
                 CandidateDiagnostic clippedPattern = evaluated.Candidate
                     .RejectionReasons.Where(item =>
                         item.Code == CandidateDiagnosticCode
@@ -474,7 +485,7 @@ namespace TileLayout.AutoCAD.Adapter
                     return string.Format(
                         CultureInfo.CurrentCulture,
                         "复杂房间的{0}存在 {1:0.###} mm 的大于半砖非整边砖（{2}，半砖为 {3}），"
-                            + "同轴没有准确墙角对缝、明确 G1 过渡分配，也没有半砖或达到推荐下限且小于半砖的节材边砖；"
+                            + "同轴没有准确墙角对缝、明确的过渡分配，也没有半砖或达到推荐下限且小于半砖的节材边砖；"
                             + "因此该候选不列入满足规则。",
                         axis,
                         largeBoundaryCut.ActualValue.Value,
@@ -504,23 +515,24 @@ namespace TileLayout.AutoCAD.Adapter
                             <= GeometryTolerance.Coordinate)
                     {
                         threshold = tileWidth
-                            * EngineeringLayoutRules.DefaultMinimumCutRatio;
+                            * recommendedMinimumCutRatio;
                     }
 
                     if (!threshold.HasValue)
                     {
                         return string.Format(
                             CultureInfo.CurrentCulture,
-                            "最窄处为{0}，低于当前默认下限 0.42T，"
+                            "最窄处为{0}，低于当前建议下限 {1:0.###}T，"
                                 + "因此本方案不能使用。"
                                 + "请返回“在图中标明重点”检查门洞影响范围和门洞所在墙，"
                                 + "或返回“铺贴方式”调整方案。",
-                            location);
+                            location,
+                            recommendedMinimumCutRatio);
                     }
 
                     return string.Format(
                         CultureInfo.CurrentCulture,
-                        "最窄处为{0}，小于当前默认下限 "
+                        "最窄处为{0}，小于当前项目下限 "
                             + "{1:0.###} mm，因此本方案不能使用。"
                             + "请返回“在图中标明重点”检查门洞影响范围和门洞所在墙，"
                             + "或返回“铺贴方式”调整方案。",
@@ -714,7 +726,7 @@ namespace TileLayout.AutoCAD.Adapter
                 }
 
                 // Wall-corner alternatives are intentionally retained when
-                // the optional preference is enabled.  If an axis has no G1
+                // the optional preference is enabled.  If an axis has no
                 // redistribution source, make the frozen threshold rule
                 // explicit instead of letting the preview look like it
                 // silently ignored the door-controlled allocation.
@@ -744,10 +756,10 @@ namespace TileLayout.AutoCAD.Adapter
                 return string.Empty;
             }
 
-            bool hasG1 = xHasDoorControlledSource
+            bool hasDoorControlledSource = xHasDoorControlledSource
                 || yHasDoorControlledSource;
-            string prefix = hasG1
-                ? " G1 门控分配（与墙角对缝优先开关独立；墙角质量仅在开关开启时参与排序）："
+            string prefix = hasDoorControlledSource
+                ? " 门洞边界调整（与房间转角优先开关独立；转角质量仅在开关开启时参与排序）："
                 : " 相位规则说明：";
             return prefix + string.Join("；", axes) + "。";
         }
@@ -785,7 +797,7 @@ namespace TileLayout.AutoCAD.Adapter
             if (!HasDoorControlledBoundaryPatternSource(candidate, axis))
             {
                 return axisName
-                    + "：已命中 G1 门控半砖—整砖—过渡砖相位（边砖带见上）";
+                    + "：已采用门洞边界的半砖—整砖—过渡砖相位（边砖带见上）";
             }
 
             bool mirroredFallback = candidate.PhaseSources.Any(source =>
@@ -800,7 +812,7 @@ namespace TileLayout.AutoCAD.Adapter
                 : string.Empty;
             return string.Format(
                 CultureInfo.CurrentCulture,
-                "{0}：G1 门洞门控边界模式；{1} {2:0.###} mm（{3}）、{4} {5:0.###} mm（{6}）{7}",
+                "{0}：门洞边界调整模式；{1} {2:0.###} mm（{3}）、{4} {5:0.###} mm（{6}）{7}",
                 axisName,
                 FormatSide(plan.LowBoundary.Side),
                 plan.LowBoundary.Width,
@@ -852,9 +864,9 @@ namespace TileLayout.AutoCAD.Adapter
                         == ProjectCutStatus.MeetsRecommendedMinimum);
             return meetsRecommended
                 ? axisName
-                    + "：墙角锚定替代相位；自然余量达到推荐下限，未触发 G1 半砖—过渡砖重分配"
+                    + "：墙角锚定替代相位；自然余量达到推荐下限，未触发半砖—过渡砖重分配"
                 : axisName
-                    + "：墙角锚定替代相位；该轴仍有低于推荐下限的实际边界切砖，未采用 G1 半砖—过渡砖重分配";
+                    + "：墙角锚定替代相位；该轴仍有低于推荐下限的实际边界切砖，未采用半砖—过渡砖重分配";
         }
 
         private static string FormatRedistributionAxis(
@@ -901,7 +913,7 @@ namespace TileLayout.AutoCAD.Adapter
 
             if (!report.PhaseSearchEnabled)
             {
-                return "候选搜索：当前沿用 G1 基础候选生成与顺序；"
+                return "候选搜索：当前沿用基础候选生成与顺序；"
                     + "本次未运行有上限的 X/Y 相位组合搜索；"
                     + (includeCornerQualityFacts
                         ? "墙角命中仅作只读诊断，不参与相位生成或候选排序。"
@@ -912,7 +924,7 @@ namespace TileLayout.AutoCAD.Adapter
             {
                 return string.Format(
                     CultureInfo.CurrentCulture,
-                    "候选搜索：G1 基础相位搜索已运行，{0}；"
+                    "候选搜索：基础相位搜索已运行，{0}；"
                         + "X 相位 {1}、Y 相位 {2}、组合 {3}、生成替代 {4}、"
                         + "相位去重 {5}、支配淘汰 {6}、保留 {7}。"
                         + "{8}",
@@ -927,8 +939,8 @@ namespace TileLayout.AutoCAD.Adapter
                     report.DominatedCandidateCount,
                     report.RetainedCandidateCount,
                     includeCornerQualityFacts
-                        ? "如需墙角锚定相位及推荐排序，请勾选“墙角对缝优先”。"
-                        : "候选按 G1 原始顺序展示；原始指标仍保留在工程详情中。");
+                        ? "如需墙角锚定相位及推荐排序，请勾选“优先考虑房间转角处的砖缝”。"
+                        : "候选按基础方案原始顺序展示；原始指标仍保留在工程详情中。");
             }
 
             return string.Format(

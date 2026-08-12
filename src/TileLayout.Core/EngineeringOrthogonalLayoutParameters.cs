@@ -44,11 +44,22 @@ namespace TileLayout.Core
                 double smallestRecommended = Math.Min(
                     tileWidth * policy.DefaultMinimumCutRatio,
                     tileHeight * policy.DefaultMinimumCutRatio);
-                if (policy.ProjectAbsoluteMinimumCut.Value
-                    > smallestRecommended + GeometryTolerance.Coordinate)
+                if (policy.ProjectAbsoluteMinimumCut.HasValue
+                    && policy.ProjectAbsoluteMinimumCut.Value
+                        > smallestRecommended + GeometryTolerance.Coordinate)
                 {
                     throw new ArgumentException(
                         "The project absolute minimum cannot exceed the recommended minimum for either tile axis.",
+                        nameof(policy));
+                }
+
+                if (policy.ProjectAbsoluteMinimumRatio.HasValue
+                    && policy.ProjectAbsoluteMinimumRatio.Value
+                        > policy.DefaultMinimumCutRatio
+                            + GeometryTolerance.Coordinate)
+                {
+                    throw new ArgumentException(
+                        "The project absolute minimum ratio cannot exceed the recommended minimum ratio.",
                         nameof(policy));
                 }
             }

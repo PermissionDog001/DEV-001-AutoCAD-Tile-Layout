@@ -8,17 +8,23 @@ namespace TileLayout.Core
             double tileWidth,
             double tileHeight,
             DoorOpening doorOpening,
-            double groutWidthMm = 0.0)
+            double groutWidthMm = 0.0,
+            double minimumCutRatio =
+                EngineeringLayoutRules.DefaultMinimumCutRatio)
         {
             ValidateTileSize(tileWidth, nameof(tileWidth));
             ValidateTileSize(tileHeight, nameof(tileHeight));
             ValidateNonNegativeFinite(groutWidthMm, nameof(groutWidthMm));
+            EngineeringLayoutRules.ValidateMinimumCutRatio(
+                minimumCutRatio,
+                nameof(minimumCutRatio));
 
             DoorOpening = doorOpening
                 ?? throw new ArgumentNullException(nameof(doorOpening));
             TileWidth = tileWidth;
             TileHeight = tileHeight;
             GroutWidthMm = groutWidthMm;
+            MinimumCutRatio = minimumCutRatio;
         }
 
         public double TileWidth { get; }
@@ -27,14 +33,13 @@ namespace TileLayout.Core
 
         public double GroutWidthMm { get; }
 
+        public double MinimumCutRatio { get; }
+
         public double GridTileWidth => TileWidth + GroutWidthMm;
 
         public double GridTileHeight => TileHeight + GroutWidthMm;
 
         public DoorOpening DoorOpening { get; }
-
-        public double MinimumCutRatio =>
-            EngineeringLayoutRules.DefaultMinimumCutRatio;
 
         public double HalfTileRatio => EngineeringLayoutRules.HalfTileRatio;
 

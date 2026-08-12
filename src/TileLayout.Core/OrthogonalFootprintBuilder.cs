@@ -350,7 +350,7 @@ namespace TileLayout.Core
                 OrthogonalRoomValidator.Validate(lines);
             if (!validation.IsValid)
             {
-                throw new ArgumentException(
+                throw new GroutAllowanceException(
                     "A tile footprint cannot be inset because its slot outline is invalid.",
                     nameof(outline));
             }
@@ -361,7 +361,7 @@ namespace TileLayout.Core
                     groutWidthMm / 2.0);
             if (!offset.IsValid)
             {
-                throw new ArgumentException(
+                throw new GroutAllowanceException(
                     "A tile footprint disappears when the grout allowance is applied.",
                     nameof(groutWidthMm));
             }
@@ -612,6 +612,14 @@ namespace TileLayout.Core
             public GridNode Start { get; }
 
             public GridNode End { get; }
+        }
+    }
+
+    internal sealed class GroutAllowanceException : ArgumentException
+    {
+        public GroutAllowanceException(string message, string parameterName)
+            : base(message, parameterName)
+        {
         }
     }
 }

@@ -133,6 +133,54 @@ namespace TileLayout.Core.Tests
         }
 
         [TestMethod]
+        public void AutomaticDimensioningDefaultsOnAndCanBeDisabledWithoutChangingCandidate()
+        {
+            var workflow = new OrthogonalDecisionGuidedWorkflow();
+            workflow.LoadBoundary(L01Lines(), 600, 600);
+            workflow.ApplyProjectSettings(
+                LayoutDecisionMode.ControlledProduction,
+                "P-1",
+                null);
+            workflow.SetLayoutIntent(RoomLayoutIntent.WholeRoomSinglePhase);
+            workflow.SetControlRegion(
+                new AxisAlignedRectangle(0, 2076, 0, 4476));
+            workflow.SetControlDoor(
+                new DoorOpening(RoomSide.North, 700, 1300));
+
+            GuidedCandidatePresentation automatic = workflow.Candidates.First(
+                item => item.Group == GuidedCandidateGroup.AutomaticRecommendation
+                    && item.Candidate.State
+                        == LayoutCandidateState.AutomaticUsable);
+            Assert.IsTrue(workflow.AutomaticDimensioningEnabled);
+            Assert.AreEqual(
+                LayoutDrawingDimensionPlacement.InsideRoom,
+                workflow.DimensionPlacement);
+            Assert.IsFalse(workflow.RoomFeatureDimensioningEnabled);
+            Assert.IsTrue(workflow.TrySelectCandidate(automatic.Candidate.Id));
+
+            LayoutCandidate preview;
+            Assert.IsTrue(workflow.TryRequestPreview(out preview));
+            Assert.IsTrue(workflow.PreviewPlan.Dimensions.Count > 0);
+            Assert.IsFalse(workflow.PreviewPlan.Dimensions.Any(dimension =>
+                dimension.Kind == LayoutDrawingDimensionKind.BoundaryFeature));
+            string candidateId = workflow.PreviewPlan.CandidateId;
+
+            workflow.SetRoomFeatureDimensioning(true);
+            Assert.IsTrue(workflow.RoomFeatureDimensioningEnabled);
+            Assert.IsNull(workflow.PreviewPlan);
+            Assert.IsTrue(workflow.TryRequestPreview(out preview));
+            Assert.IsTrue(workflow.PreviewPlan.Dimensions.Any(dimension =>
+                dimension.Kind == LayoutDrawingDimensionKind.BoundaryFeature));
+
+            workflow.SetAutomaticDimensioning(false);
+            Assert.IsFalse(workflow.AutomaticDimensioningEnabled);
+            Assert.IsNull(workflow.PreviewPlan);
+            Assert.IsTrue(workflow.TryRequestPreview(out preview));
+            Assert.AreEqual(candidateId, workflow.PreviewPlan.CandidateId);
+            Assert.AreEqual(0, workflow.PreviewPlan.Dimensions.Count);
+        }
+
+        [TestMethod]
         public void SelectedManualCandidate_CanRequestPrimaryPreviewWithoutReasonInput()
         {
             OrthogonalDecisionGuidedWorkflow workflow = CompletedL04E(
@@ -508,7 +556,7 @@ namespace TileLayout.Core.Tests
                 item => item.Requirement.Code
                     == DecisionRequirementCode.ProjectSecondAbsoluteMinimum);
             StringAssert.Contains(policy.Message, "最小边砖宽度");
-            StringAssert.Contains(policy.NextAction, "确定铺贴要求");
+            StringAssert.Contains(policy.NextAction, "项目铺贴规则");
             Assert.IsFalse(workflow.Palette.CanRequestPreview);
         }
 
@@ -1065,6 +1113,43 @@ namespace TileLayout.Core.Tests
                 "P-G2",
                 126.001,
                 true));
+        }
+
+        [TestMethod]
+        public void ProjectRulesAllowAbsoluteMinimumRatioInsteadOfMillimetres()
+        {
+            var workflow = new OrthogonalDecisionGuidedWorkflow();
+            workflow.LoadBoundary(L01Lines(), 600, 600);
+
+            workflow.ApplyProjectSettings(
+                LayoutDecisionMode.ControlledProduction,
+                "P-RATIO",
+                null,
+                true,
+                ProjectAbsoluteMinimumMode.NumericRatio,
+                0.5,
+                0.42);
+
+            Assert.AreEqual(
+                ProjectAbsoluteMinimumMode.NumericRatio,
+                workflow.Input.Policy.ProjectAbsoluteMinimumMode);
+            Assert.IsNull(workflow.Input.Policy.ProjectAbsoluteMinimumCut);
+            Assert.AreEqual(
+                0.42,
+                workflow.Input.Policy.ProjectAbsoluteMinimumRatio.Value,
+                GeometryTolerance.Coordinate);
+            StringAssert.Contains(
+                workflow.BuildSummary(),
+                "比例 0.42");
+
+            AssertThrows<ArgumentException>(() => workflow.ApplyProjectSettings(
+                LayoutDecisionMode.ControlledProduction,
+                "P-RATIO",
+                null,
+                true,
+                ProjectAbsoluteMinimumMode.NumericRatio,
+                0.5,
+                0.51));
         }
 
         [TestMethod]

@@ -140,7 +140,7 @@ namespace TileLayout.AutoCAD.Adapter
     public sealed class OrthogonalDecisionGuidedWorkflow
     {
         public const int EliminatedCandidatePageSize = 50;
-        public const string OrdinaryPolicyVersion = "G2-AUTO-RULE-1";
+        public const string OrdinaryPolicyVersion = "项目规则-1";
 
         private readonly OrthogonalDecisionInputSession input =
             new OrthogonalDecisionInputSession();
@@ -154,6 +154,12 @@ namespace TileLayout.AutoCAD.Adapter
         private string formalWritebackCandidateId;
         private bool formalWritebackCompleted;
         private int formalWritebackLineCount;
+        private bool automaticDimensioningEnabled = true;
+        private bool roomFeatureDimensioningEnabled;
+        private LayoutDrawingDimensionPlacement dimensionPlacement =
+            LayoutDrawingDimensionPlacement.InsideRoom;
+        private LayoutDrawingColorSettings colorSettings =
+            LayoutDrawingColorSettings.Default;
         private readonly List<GuidedCandidatePresentation> candidates =
             new List<GuidedCandidatePresentation>();
         private IReadOnlyList<GuidedCandidatePresentation> candidateView;
@@ -196,6 +202,10 @@ namespace TileLayout.AutoCAD.Adapter
         private bool ordinarySummaryFormalWritebackCompleted;
         private bool ordinarySummaryFormalWritebackAcknowledged;
         private int ordinarySummaryFormalWritebackLineCount;
+        private bool ordinarySummaryAutomaticDimensioningEnabled;
+        private bool ordinarySummaryRoomFeatureDimensioningEnabled;
+        private LayoutDrawingDimensionPlacement ordinarySummaryDimensionPlacement;
+        private LayoutDrawingColorSettings ordinarySummaryColorSettings;
         private GuidedEliminatedGroup? eliminatedFilter;
         private int eliminatedPageIndex;
         private string selectedDiagnosticTileId;
@@ -257,6 +267,16 @@ namespace TileLayout.AutoCAD.Adapter
         public bool ShowNeutralRegions => showNeutralRegions;
 
         public bool ShowWallCornerDiagnostics => showWallCornerDiagnostics;
+
+        public bool AutomaticDimensioningEnabled => automaticDimensioningEnabled;
+
+        public bool RoomFeatureDimensioningEnabled =>
+            roomFeatureDimensioningEnabled;
+
+        public LayoutDrawingDimensionPlacement DimensionPlacement =>
+            dimensionPlacement;
+
+        public LayoutDrawingColorSettings ColorSettings => colorSettings;
 
         public bool PreferWallCornerAlignment =>
             input.PreferWallCornerAlignment;
@@ -467,7 +487,10 @@ namespace TileLayout.AutoCAD.Adapter
                     + OrthogonalDecisionGuidedText.FormatCandidateReason(
                         first.Candidate,
                         input.TileWidth,
-                        input.TileHeight);
+                        input.TileHeight,
+                        input.Policy == null
+                            ? EngineeringLayoutRules.GuidedDefaultMinimumCutRatio
+                            : input.Policy.DefaultMinimumCutRatio);
             }
 
             if (Candidates.Count == 0)
@@ -573,12 +596,15 @@ namespace TileLayout.AutoCAD.Adapter
             double? secondAbsoluteMinimum,
             bool recommendedMinimumIsConfirmed = true,
             ProjectAbsoluteMinimumMode projectAbsoluteMinimumMode =
-                ProjectAbsoluteMinimumMode.NotDecided)
+                ProjectAbsoluteMinimumMode.NotDecided,
+            double recommendedMinimumCutRatio =
+                EngineeringLayoutRules.DefaultMinimumCutRatio,
+            double? projectAbsoluteMinimumRatio = null)
         {
             if (!recommendedMinimumIsConfirmed)
             {
                 throw new ArgumentException(
-                    "The fixed recommended minimum must be confirmed before project rules are applied.",
+                    "The recommended minimum ratio must be confirmed before project rules are applied.",
                     nameof(recommendedMinimumIsConfirmed));
             }
 
@@ -589,9 +615,14 @@ namespace TileLayout.AutoCAD.Adapter
                     nameof(policyVersion));
             }
 
+            EngineeringLayoutRules.ValidateMinimumCutRatio(
+                recommendedMinimumCutRatio,
+                nameof(recommendedMinimumCutRatio));
+
             if (projectAbsoluteMinimumMode
                     == ProjectAbsoluteMinimumMode.VisualConfirmation
-                && secondAbsoluteMinimum.HasValue)
+                && (secondAbsoluteMinimum.HasValue
+                    || projectAbsoluteMinimumRatio.HasValue))
             {
                 throw new ArgumentException(
                     "Visual confirmation mode cannot carry a numeric project absolute minimum.",
@@ -599,18 +630,37 @@ namespace TileLayout.AutoCAD.Adapter
             }
 
             if (projectAbsoluteMinimumMode == ProjectAbsoluteMinimumMode.Numeric
-                && !secondAbsoluteMinimum.HasValue)
+                && (!secondAbsoluteMinimum.HasValue
+                    || projectAbsoluteMinimumRatio.HasValue))
             {
                 throw new ArgumentException(
                     "Numeric project absolute minimum mode requires a value.",
                     nameof(secondAbsoluteMinimum));
             }
 
+            if (projectAbsoluteMinimumMode
+                    == ProjectAbsoluteMinimumMode.NumericRatio
+                && (!projectAbsoluteMinimumRatio.HasValue
+                    || secondAbsoluteMinimum.HasValue))
+            {
+                throw new ArgumentException(
+                    "Numeric-ratio project absolute minimum mode requires a ratio value.",
+                    nameof(projectAbsoluteMinimumRatio));
+            }
+
+            if (secondAbsoluteMinimum.HasValue
+                && projectAbsoluteMinimumRatio.HasValue)
+            {
+                throw new ArgumentException(
+                    "Set either a millimetre minimum or a ratio minimum, not both.",
+                    nameof(projectAbsoluteMinimumRatio));
+            }
+
             if (secondAbsoluteMinimum.HasValue && input.HasRoom)
             {
                 double smallestRecommended = Math.Min(
-                    input.TileWidth * EngineeringLayoutRules.DefaultMinimumCutRatio,
-                    input.TileHeight * EngineeringLayoutRules.DefaultMinimumCutRatio);
+                    input.TileWidth * recommendedMinimumCutRatio,
+                    input.TileHeight * recommendedMinimumCutRatio);
                 if (secondAbsoluteMinimum.Value
                     > smallestRecommended + GeometryTolerance.Coordinate)
                 {
@@ -620,11 +670,27 @@ namespace TileLayout.AutoCAD.Adapter
                 }
             }
 
+            if (projectAbsoluteMinimumRatio.HasValue)
+            {
+                EngineeringLayoutRules.ValidateMinimumCutRatio(
+                    projectAbsoluteMinimumRatio.Value,
+                    nameof(projectAbsoluteMinimumRatio));
+                if (projectAbsoluteMinimumRatio.Value
+                    > recommendedMinimumCutRatio + GeometryTolerance.Coordinate)
+                {
+                    throw new ArgumentException(
+                        "The project absolute minimum ratio cannot exceed the recommended minimum ratio.",
+                        nameof(projectAbsoluteMinimumRatio));
+                }
+            }
+
             bool invalidated = input.DecisionRecord != null;
             LayoutPolicyProfile policy = new LayoutPolicyProfile(
                 policyVersion.Trim(),
                 secondAbsoluteMinimum,
-                projectAbsoluteMinimumMode);
+                projectAbsoluteMinimumMode,
+                recommendedMinimumCutRatio,
+                projectAbsoluteMinimumRatio);
             input.SetPolicy(policy, mode);
             recommendedMinimumConfirmed = true;
             AfterDecisionInputChanged(
@@ -638,14 +704,19 @@ namespace TileLayout.AutoCAD.Adapter
             double? projectAbsoluteMinimum,
             bool recommendedMinimumIsConfirmed = true,
             ProjectAbsoluteMinimumMode projectAbsoluteMinimumMode =
-                ProjectAbsoluteMinimumMode.NotDecided)
+                ProjectAbsoluteMinimumMode.NotDecided,
+            double recommendedMinimumCutRatio =
+                EngineeringLayoutRules.DefaultMinimumCutRatio,
+            double? projectAbsoluteMinimumRatio = null)
         {
             ApplyProjectSettings(
                 LayoutDecisionMode.ControlledProduction,
                 OrdinaryPolicyVersion,
                 projectAbsoluteMinimum,
                 recommendedMinimumIsConfirmed,
-                projectAbsoluteMinimumMode);
+                projectAbsoluteMinimumMode,
+                recommendedMinimumCutRatio,
+                projectAbsoluteMinimumRatio);
             SetLayoutIntent(RoomLayoutIntent.WholeRoomSinglePhase);
             Notice = "项目规则已保存。程序将自动分解房间、识别门洞邻接区域，"
                 + "并默认保持全房连续相位；下一步只需在图中选择门洞。";
@@ -689,9 +760,80 @@ namespace TileLayout.AutoCAD.Adapter
                 invalidated,
                 "可选质量优先设置已修改，旧的图面预览和人工确认记录已失效。",
                 enabled
-                    ? "已启用：将运行可选质量候选搜索，并优先考虑入口视觉范围、2/3 安全分格和原有硬规则。"
-                    : "已关闭：恢复 G1 候选生成与顺序；原始角点事实仍保留在工程详情中，"
-                        + "但不参与排砖、排序或确认。");
+                    ? "已启用：在满足硬规则的前提下，优先比较入口观感和房间转角处的砖缝。"
+                    : "已关闭：按基础排版顺序比较方案；转角尺寸仍可在工程详情中查看。" );
+        }
+
+        public void SetAutomaticDimensioning(bool enabled)
+        {
+            if (automaticDimensioningEnabled == enabled)
+            {
+                return;
+            }
+
+            automaticDimensioningEnabled = enabled;
+            InvalidatePreview(
+                "自动尺寸标注设置已修改，旧的图面预览已失效。" );
+            Notice = enabled
+                ? "已开启自动尺寸标注；请重新显示预览查看建筑样式尺寸链。"
+                : "已关闭自动尺寸标注；请重新显示预览确认图面。";
+        }
+
+        public void SetRoomFeatureDimensioning(bool enabled)
+        {
+            if (roomFeatureDimensioningEnabled == enabled)
+            {
+                return;
+            }
+
+            roomFeatureDimensioningEnabled = enabled;
+            InvalidatePreview(
+                "房间凹凸台阶标注设置已修改，旧的图面预览已失效。" );
+            Notice = enabled
+                ? "已开启房间凹边、凸边和转角台阶尺寸标注；请重新预览。"
+                : "已关闭房间凹边、凸边和转角台阶尺寸标注；特殊切砖仍按规则单独标注。";
+        }
+
+        public void SetDimensionPlacement(
+            LayoutDrawingDimensionPlacement placement)
+        {
+            if (!Enum.IsDefined(
+                typeof(LayoutDrawingDimensionPlacement),
+                placement))
+            {
+                throw new ArgumentOutOfRangeException(nameof(placement));
+            }
+
+            if (dimensionPlacement == placement)
+            {
+                return;
+            }
+
+            dimensionPlacement = placement;
+            InvalidatePreview(
+                "尺寸标注位置已修改，旧的图面预览已失效。" );
+            Notice = placement
+                == LayoutDrawingDimensionPlacement.InsideRoom
+                ? "已设置为房间内标注；尺寸线将沿砖边显示，请重新预览。"
+                : "已设置为房间外标注；尺寸线将使用外置尺寸链，请重新预览。";
+        }
+
+        public void SetColorSettings(LayoutDrawingColorSettings settings)
+        {
+            if (settings == null)
+            {
+                throw new ArgumentNullException(nameof(settings));
+            }
+
+            if (colorSettings.IsEquivalentTo(settings))
+            {
+                return;
+            }
+
+            colorSettings = settings;
+            InvalidatePreview(
+                "图面颜色设置已修改，旧的图面预览已失效。" );
+            Notice = "图面颜色已更新；请重新预览确认颜色和尺寸标注。";
         }
 
         public void SetControlRegion(AxisAlignedRectangle region)
@@ -815,7 +957,7 @@ namespace TileLayout.AutoCAD.Adapter
             error = string.Empty;
             if (input.Policy == null)
             {
-                error = "请先在“确定铺贴要求”中填写已确认的项目规则版本。";
+                error = "请先保存项目铺贴规则。";
                 return false;
             }
 
@@ -998,8 +1140,18 @@ namespace TileLayout.AutoCAD.Adapter
             formalWritebackAcknowledged = false;
             formalWritebackCandidateId = null;
             PreviewState = OrthogonalDecisionPreviewState.Visible;
-            Notice = "临时铺贴图已显示：绿色为实际分格线，黄色/橙色为窄砖诊断，"
-                + "中性区域仅在勾选后显示；图纸仍未写入。";
+            Notice = "临时铺贴图已显示：实际分格线使用 ACI "
+                + colorSettings.DivisionLineColorIndex
+                + "，"
+                + (automaticDimensioningEnabled
+                    ? "尺寸标注按当前 ACI 颜色和位置设置显示，"
+                    : string.Empty)
+                + (previewPlan.StartPoint != null
+                    ? "起铺点箭头已按实际起铺方向显示，"
+                    : "当前方案未找到整砖/半砖起铺位置，未显示起铺点（"
+                        + previewPlan.StartPointUnavailableReason
+                        + "），")
+                + "黄色/橙色为窄砖诊断，中性区域仅在勾选后显示；图纸仍未写入。";
         }
 
         public void MarkPreviewRefreshRequired(string reason)
@@ -1057,12 +1209,34 @@ namespace TileLayout.AutoCAD.Adapter
 
             int lineCount = previewPlan.DivisionLines.Count
                 + previewPlan.Connections.Count;
+            int dimensionCount = previewPlan.Dimensions.Count;
             var builder = new System.Text.StringBuilder();
             builder.Append("即将把当前同源预览中的 ");
             builder.Append(lineCount);
-            builder.Append(" 条正式线写入图层 ");
+            builder.Append(" 条正式分格线写入图层 ");
             builder.Append(OrthogonalLayoutWritebackPolicy.ConfirmedLayerName);
-            builder.Append("。本次只写实际分格线和必要连接边，不写中性连接线、墙角诊断、窄砖标记或其他预览标记。\r\n\r\n");
+            if (dimensionCount > 0)
+            {
+                builder.Append("，并把 ");
+                builder.Append(dimensionCount);
+                builder.Append(" 个尺寸标注写入图层 ");
+                builder.Append(OrthogonalLayoutWritebackPolicy.DimensionLayerName);
+                builder.Append("；");
+                builder.Append(FormatDimensionSettings());
+            }
+
+            if (previewPlan.StartPoint != null)
+            {
+                builder.Append("，并把起铺点标志写入图层 ");
+                builder.Append(OrthogonalLayoutWritebackPolicy.StartPointLayerName);
+            }
+            else
+            {
+                builder.Append("；当前方案未找到整砖/半砖起铺位置，不写入起铺点标志");
+            }
+
+            builder.Append("。本次只写实际分格线、必要连接边、已勾选的尺寸标注和起铺点标志，"
+                + "不写中性连接线、墙角诊断、窄砖标记或其他预览标记。\r\n\r\n");
             if (previewPlan.CandidateState
                 == LayoutCandidateState.RequiresProjectPolicy)
             {
@@ -1112,6 +1286,42 @@ namespace TileLayout.AutoCAD.Adapter
                 out rejectionReason);
         }
 
+        public bool TryGetAuthorizedFormalDimensions(
+            out IReadOnlyList<LayoutDrawingDimension> dimensions,
+            out string rejectionReason)
+        {
+            bool acknowledged = formalWritebackAcknowledged
+                && string.Equals(
+                    formalWritebackCandidateId,
+                    previewPlan == null ? null : previewPlan.CandidateId,
+                    StringComparison.Ordinal);
+            return OrthogonalLayoutWritebackPolicy.TryGetFormalDimensions(
+                previewPlan,
+                PreviewState == OrthogonalDecisionPreviewState.Visible,
+                acknowledged,
+                input.Policy != null && input.Policy.AllowsVisualConfirmation,
+                out dimensions,
+                out rejectionReason);
+        }
+
+        public bool TryGetAuthorizedFormalStartPoint(
+            out LayoutDrawingStartPoint startPoint,
+            out string rejectionReason)
+        {
+            bool acknowledged = formalWritebackAcknowledged
+                && string.Equals(
+                    formalWritebackCandidateId,
+                    previewPlan == null ? null : previewPlan.CandidateId,
+                    StringComparison.Ordinal);
+            return OrthogonalLayoutWritebackPolicy.TryGetFormalStartPoint(
+                previewPlan,
+                PreviewState == OrthogonalDecisionPreviewState.Visible,
+                acknowledged,
+                input.Policy != null && input.Policy.AllowsVisualConfirmation,
+                out startPoint,
+                out rejectionReason);
+        }
+
         public void MarkFormalWritebackFailed(string reason)
         {
             formalWritebackAcknowledged = false;
@@ -1139,7 +1349,7 @@ namespace TileLayout.AutoCAD.Adapter
             PreviewState = OrthogonalDecisionPreviewState.None;
             Notice = string.Format(
                 CultureInfo.CurrentCulture,
-                "已正式写回 {0} 条线；预览已清除，图纸未自动保存。需要撤销时可使用一次 U 或 UNDO。",
+                "已正式写回 {0} 个对象；预览已清除，图纸未自动保存。需要撤销时可使用一次 U 或 UNDO。",
                 lineCount);
         }
 
@@ -1320,6 +1530,10 @@ namespace TileLayout.AutoCAD.Adapter
             formalWritebackCandidateId = null;
             formalWritebackCompleted = false;
             formalWritebackLineCount = 0;
+            automaticDimensioningEnabled = true;
+            roomFeatureDimensioningEnabled = false;
+            dimensionPlacement = LayoutDrawingDimensionPlacement.InsideRoom;
+            colorSettings = LayoutDrawingColorSettings.Default;
             PendingAction = null;
             ActiveStep = OrthogonalDecisionGuideStep.Room;
             IsCompleted = false;
@@ -1327,7 +1541,7 @@ namespace TileLayout.AutoCAD.Adapter
             Notice = retainedFormalWriteback
                 ? string.Format(
                     CultureInfo.CurrentCulture,
-                    "本次向导已取消；此前已正式写回的 {0} 条线仍保留在图纸中，"
+                    "本次向导已取消；此前已正式写回的 {0} 个对象仍保留在图纸中，"
                         + "本次取消不会撤销或删除它们。现在可以继续排版其他房间。",
                     retainedFormalLineCount)
                 : "本次向导已取消并清空；未创建或修改任何图层、实体或事务。";
@@ -1353,7 +1567,7 @@ namespace TileLayout.AutoCAD.Adapter
                 case OrthogonalDecisionGuideStep.Project:
                     return input.Policy != null && recommendedMinimumConfirmed
                         ? string.Empty
-                        : "请确认固定推荐下限 0.42T，并填写项目绝对下限状态后保存。";
+                        : "请填写建议下限比例，并选择项目最低尺寸的处理方式后保存。";
                 case OrthogonalDecisionGuideStep.Intent:
                     return input.LayoutIntent.HasValue
                         ? string.Empty
@@ -1392,8 +1606,8 @@ namespace TileLayout.AutoCAD.Adapter
                                 + "重选实际门洞两侧边缘，不要使用墙线两端代替门洞。";
                         }
 
-                        return "当前所有方案均不可使用。请返回“在图中标明重点”"
-                            + "检查门洞影响范围和门洞所在墙，或返回“确定铺贴要求”调整铺贴方式。";
+                            return "当前所有方案均不可使用。请返回“图面重点”"
+                                + "检查门洞影响范围和门洞所在墙，或返回项目铺贴规则调整设置。";
                     }
 
                     if (palette.SelectedCandidate != null
@@ -1427,13 +1641,13 @@ namespace TileLayout.AutoCAD.Adapter
                     ? "项目规则：版本尚未确认。"
                     : "项目规则：" + input.Policy.Version + "；使用方式="
                         + OrthogonalDecisionGuidedText.FormatMode(input.Mode)
-                        + "；固定推荐下限="
-                        + (recommendedMinimumConfirmed ? "已确认" : "待确认")
+                        + "；建议下限="
+                        + (recommendedMinimumConfirmed
+                            ? input.Policy.DefaultMinimumCutRatio
+                                .ToString("0.###", CultureInfo.InvariantCulture) + "T"
+                            : "待确认")
                         + "；项目绝对下限="
-                        + (input.Policy.HasProjectAbsoluteMinimum
-                            ? input.Policy.ProjectAbsoluteMinimumCut.Value.ToString(
-                                "0.###", CultureInfo.InvariantCulture) + " mm"
-                            : "尚未确认") + "。",
+                        + FormatProjectAbsoluteMinimumSetting() + "。",
                 "铺贴方式：" + OrthogonalDecisionGuidedText.FormatIntent(
                     input.LayoutIntent),
                 "门洞影响范围：" + (input.ControlRegion == null ? "未选择" : "已选择")
@@ -1478,7 +1692,14 @@ namespace TileLayout.AutoCAD.Adapter
                 && ordinarySummaryFormalWritebackAcknowledged
                     == formalWritebackAcknowledged
                 && ordinarySummaryFormalWritebackLineCount
-                    == formalWritebackLineCount)
+                    == formalWritebackLineCount
+                && ordinarySummaryAutomaticDimensioningEnabled
+                    == automaticDimensioningEnabled
+                && ordinarySummaryRoomFeatureDimensioningEnabled
+                    == roomFeatureDimensioningEnabled
+                && ordinarySummaryDimensionPlacement == dimensionPlacement
+                && ordinarySummaryColorSettings != null
+                && ordinarySummaryColorSettings.IsEquivalentTo(colorSettings))
             {
                 return ordinarySummaryView;
             }
@@ -1494,8 +1715,11 @@ namespace TileLayout.AutoCAD.Adapter
                     : "房间：尚未选择。",
                 input.Policy == null
                     ? "项目规则：尚未确认。"
-                    : "项目规则：推荐下限 "
-                        + (recommendedMinimumConfirmed ? "已确认" : "待确认")
+                    : "项目规则：建议下限 "
+                        + (recommendedMinimumConfirmed
+                            ? input.Policy.DefaultMinimumCutRatio
+                                .ToString("0.###", CultureInfo.InvariantCulture) + "T"
+                            : "待确认")
                         + "；项目绝对下限="
                         + FormatProjectAbsoluteMinimumSetting() + "。",
                 input.ControlDoor == null
@@ -1513,10 +1737,15 @@ namespace TileLayout.AutoCAD.Adapter
                         ? "方案确认：已保存项目复核记录；不代表自动合规。"
                         : "方案确认：已采用一个满足规则的方案。"
                     : "方案确认：尚未保存。",
+                "自动尺寸标注："
+                    + (automaticDimensioningEnabled ? "已开启" : "已关闭")
+                    + "；"
+                    + FormatDimensionSettings()
+                    + "。",
                 formalWritebackCompleted
                     ? string.Format(
                         CultureInfo.CurrentCulture,
-                        "图面状态：已正式写回 {0} 条线；DWG 未自动保存，可用一次 U 或 UNDO 撤销。",
+                        "图面状态：已正式写回 {0} 个对象；DWG 未自动保存，可用一次 U 或 UNDO 撤销。",
                         formalWritebackLineCount)
                     : formalWritebackAcknowledged
                         ? "图面状态：已完成最后确认，正在等待一次原子写回；尚未写入 DWG。"
@@ -1538,6 +1767,12 @@ namespace TileLayout.AutoCAD.Adapter
             ordinarySummaryFormalWritebackAcknowledged =
                 formalWritebackAcknowledged;
             ordinarySummaryFormalWritebackLineCount = formalWritebackLineCount;
+            ordinarySummaryAutomaticDimensioningEnabled =
+                automaticDimensioningEnabled;
+            ordinarySummaryRoomFeatureDimensioningEnabled =
+                roomFeatureDimensioningEnabled;
+            ordinarySummaryDimensionPlacement = dimensionPlacement;
+            ordinarySummaryColorSettings = colorSettings;
             ordinarySummaryView = string.Join(Environment.NewLine, lines);
             ordinarySummaryRendered = true;
             return ordinarySummaryView;
@@ -1563,6 +1798,14 @@ namespace TileLayout.AutoCAD.Adapter
 
             if (input.Policy.HasProjectAbsoluteMinimum)
             {
+                if (input.Policy.ProjectAbsoluteMinimumRatio.HasValue)
+                {
+                    return "比例 "
+                        + input.Policy.ProjectAbsoluteMinimumRatio.Value.ToString(
+                            "0.###", CultureInfo.InvariantCulture)
+                        + "（按 X/Y 对应砖尺寸换算）";
+                }
+
                 return input.Policy.ProjectAbsoluteMinimumCut.Value.ToString(
                     "0.###", CultureInfo.InvariantCulture) + " mm";
             }
@@ -1741,8 +1984,31 @@ namespace TileLayout.AutoCAD.Adapter
             {
                 previewPlan = LayoutDrawingPlanBuilder.Build(
                     input.Result,
-                    candidateId);
+                    candidateId,
+                    automaticDimensioningEnabled,
+                    dimensionPlacement,
+                    colorSettings,
+                    roomFeatureDimensioningEnabled);
             }
+        }
+
+        private string FormatDimensionSettings()
+        {
+            string placement = dimensionPlacement
+                == LayoutDrawingDimensionPlacement.InsideRoom
+                ? "房间内"
+                : "房间外";
+            return "位置=" + placement
+                + "；分割线 ACI "
+                + colorSettings.DivisionLineColorIndex
+                + "；砖尺寸标注 ACI "
+                + colorSettings.TileDimensionColorIndex
+                + "；凹凸/特殊标注 ACI "
+                + colorSettings.BoundaryFeatureDimensionColorIndex
+                + "；抹灰边界 ACI "
+                + colorSettings.PlasterBoundaryColorIndex
+                + "；房间凹凸台阶 "
+                + (roomFeatureDimensioningEnabled ? "开启" : "关闭");
         }
 
         private void SyncPalette()

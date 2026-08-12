@@ -165,7 +165,7 @@ namespace TileLayout.AutoCAD.Adapter
             builder.Append(FormatNumber(metrics.InternalTransitionSeamLength));
             builder.Append("，边界非整砖=");
             builder.Append(metrics.BoundaryNonFullTileCount);
-            builder.Append("，低于默认下限=");
+            builder.Append("，低于建议下限=");
             builder.Append(metrics.BelowDefaultMinimumBoundaryTileCount);
             builder.Append("，最小边界带=");
             builder.Append(FormatNumber(metrics.MinimumBoundaryBandWidth));

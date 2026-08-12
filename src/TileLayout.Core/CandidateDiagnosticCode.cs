@@ -30,6 +30,7 @@ namespace TileLayout.Core
         DuplicatePhaseRemoved,
         CandidateSearchTruncated,
         DominatedByCandidate,
-        MultipleCandidatesRequireSelection
+        MultipleCandidatesRequireSelection,
+        GroutTileBodyUnavailable
     }
 }

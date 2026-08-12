@@ -347,7 +347,7 @@ namespace TileLayout.Core.Tests
                 TileLayoutCommandText.FormatEngineeringFailure(layout);
 
             StringAssert.StartsWith(message, "没有可接受的门洞控制候选：");
-            StringAssert.Contains(message, "X向边界砖 200 mm 小于默认下限 252 mm");
+            StringAssert.Contains(message, "X向边界砖 200 mm 小于当前下限 252 mm");
             StringAssert.Contains(message, "X向没有可用于半砖重分配的整砖");
             StringAssert.EndsWith(message, "未生成任何对象。");
         }

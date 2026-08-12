@@ -80,6 +80,11 @@
     <Compile Include="LayoutCandidateMetrics.cs" />
     <Compile Include="LayoutDrawingPlan.cs" />
     <Compile Include="LayoutDrawingPlanBuilder.cs" />
+    <Compile Include="LayoutDrawingStartPoint.cs" />
+    <Compile Include="LayoutDrawingStartPointBuilder.cs" />
+    <Compile Include="LayoutDrawingDimension.cs" />
+    <Compile Include="LayoutDrawingDimensionBuilder.cs" />
+    <Compile Include="LayoutDrawingStyleSettings.cs" />
     <Compile Include="LayoutDrawingPlanSvgRenderer.cs" />
     <Compile Include="LayoutRegionPhase.cs" />
     <Compile Include="LayoutRegionRole.cs" />

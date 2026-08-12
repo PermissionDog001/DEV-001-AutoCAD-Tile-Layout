@@ -79,6 +79,9 @@
     <Compile Include="Adapter\OrthogonalLayoutTransientPreview.cs" />
     <Compile Include="Adapter\OrthogonalDecisionPaletteSession.cs" />
     <Compile Include="Adapter\OrthogonalDecisionPaletteText.cs" />
+    <Compile Include="Adapter\OrthogonalLayoutDimensionEntityFactory.cs" />
+    <Compile Include="Adapter\OrthogonalLayoutDimensionStyle.cs" />
+    <Compile Include="Adapter\OrthogonalLayoutStartPointEntityFactory.cs" />
     <Compile Include="Adapter\OrthogonalLayoutWritebackPolicy.cs" />
     <Compile Include="Adapter\TileLayoutCommandText.cs" />
     <Compile Include="Commands\TileLayoutCommands.cs" />

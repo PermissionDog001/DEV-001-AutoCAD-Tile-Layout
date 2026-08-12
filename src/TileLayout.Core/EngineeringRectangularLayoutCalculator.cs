@@ -120,7 +120,8 @@ namespace TileLayout.Core
                     parameters.GridTileWidth,
                     xMetrics,
                     parameters.DoorOpening.Wall,
-                    depthHalfSide);
+                    depthHalfSide,
+                    parameters.MinimumCutRatio);
                 yBuild = BuildAxisPlan(
                     TileLayoutAxis.Y,
                     DoorControlledAxisRole.AlongWall,
@@ -129,7 +130,8 @@ namespace TileLayout.Core
                     parameters.GridTileHeight,
                     yMetrics,
                     alongControlSide,
-                    alongHalfSide);
+                    alongHalfSide,
+                    parameters.MinimumCutRatio);
             }
             else
             {
@@ -141,7 +143,8 @@ namespace TileLayout.Core
                     parameters.GridTileWidth,
                     xMetrics,
                     alongControlSide,
-                    alongHalfSide);
+                    alongHalfSide,
+                    parameters.MinimumCutRatio);
                 yBuild = BuildAxisPlan(
                     TileLayoutAxis.Y,
                     DoorControlledAxisRole.DoorNormal,
@@ -150,7 +153,8 @@ namespace TileLayout.Core
                     parameters.GridTileHeight,
                     yMetrics,
                     parameters.DoorOpening.Wall,
-                    depthHalfSide);
+                    depthHalfSide,
+                    parameters.MinimumCutRatio);
             }
 
             var plans = new List<BoundaryBandPlan>(2);
@@ -231,12 +235,16 @@ namespace TileLayout.Core
             double gridTileSize,
             TileSpanMetrics metrics,
             RoomSide controlSide,
-            RoomSide halfSideWhenRedistributed)
+            RoomSide halfSideWhenRedistributed,
+            double minimumCutRatio =
+                EngineeringLayoutRules.DefaultMinimumCutRatio)
         {
             RoomSide lowSide = GetLowSide(axis);
             RoomSide highSide = GetHighSide(axis);
-            double minimumCut =
-                tileSize * EngineeringLayoutRules.DefaultMinimumCutRatio;
+            EngineeringLayoutRules.ValidateMinimumCutRatio(
+                minimumCutRatio,
+                nameof(minimumCutRatio));
+            double minimumCut = tileSize * minimumCutRatio;
             double remainder = metrics.Remainder;
             double grout = gridTileSize - tileSize;
             if (double.IsNaN(grout)
@@ -276,7 +284,8 @@ namespace TileLayout.Core
                     Math.Max(0, fullSpanCount - 2),
                     false,
                     segments,
-                    gridTileSize);
+                    gridTileSize,
+                    minimumCutRatio);
                 return AxisPlanBuildResult.Success(
                     plan,
                     new CandidateDiagnostic(
@@ -328,7 +337,8 @@ namespace TileLayout.Core
                     Math.Max(0, fullSpanCount - 1),
                     false,
                     segments,
-                    gridTileSize);
+                    gridTileSize,
+                    minimumCutRatio);
                 plan = ReplaceBoundaryWidths(
                     plan,
                     Math.Max(0.0, lowWidth - grout),
@@ -338,7 +348,7 @@ namespace TileLayout.Core
                     new CandidateDiagnostic(
                         CandidateDiagnosticCode.NaturalRemainderAccepted,
                         CandidateDiagnosticSeverity.Information,
-                        "The natural remainder satisfies the default minimum cut.",
+                        "The natural remainder satisfies the configured minimum cut.",
                         axis,
                         Opposite(controlSide),
                         physicalRemainder,
@@ -351,7 +361,7 @@ namespace TileLayout.Core
                     new CandidateDiagnostic(
                         CandidateDiagnosticCode.MinimumCutNotMet,
                         CandidateDiagnosticSeverity.Rejection,
-                        "The only boundary band is below the default minimum cut.",
+                        "The only boundary band is below the configured minimum cut.",
                         axis,
                         null,
                         physicalRemainder,
@@ -377,6 +387,66 @@ namespace TileLayout.Core
             }
 
             double half = tileSize * EngineeringLayoutRules.HalfTileRatio;
+            if (physicalRemainder + GeometryTolerance.Coordinate >= half)
+            {
+                var naturalSegments = new List<double>(fullSpanCount + 1);
+                bool controlIsLow = controlSide == lowSide;
+                if (!controlIsLow)
+                {
+                    naturalSegments.Add(remainder);
+                }
+
+                for (int index = 0; index < fullSpanCount; index++)
+                {
+                    naturalSegments.Add(gridTileSize);
+                }
+
+                if (controlIsLow)
+                {
+                    naturalSegments.Add(remainder);
+                }
+
+                BoundaryBandKind lowKind =
+                    fullSpanCount == 0 || !controlIsLow
+                        ? BoundaryBandKind.NaturalRemainder
+                        : BoundaryBandKind.FullTile;
+                BoundaryBandKind highKind =
+                    fullSpanCount == 0 || controlIsLow
+                        ? BoundaryBandKind.NaturalRemainder
+                        : BoundaryBandKind.FullTile;
+                var naturalPlan = new BoundaryBandPlan(
+                    axis,
+                    role,
+                    tileSize,
+                    physicalRemainder,
+                    controlSide,
+                    controlSide,
+                    new AxisBoundaryBand(
+                        lowSide,
+                        naturalSegments[0] - grout,
+                        lowKind),
+                    new AxisBoundaryBand(
+                        highSide,
+                        naturalSegments[naturalSegments.Count - 1] - grout,
+                        highKind),
+                    fullSpanCount,
+                    Math.Max(0, fullSpanCount - 1),
+                    false,
+                    naturalSegments,
+                    gridTileSize,
+                    minimumCutRatio);
+                return AxisPlanBuildResult.Success(
+                    naturalPlan,
+                    new CandidateDiagnostic(
+                        CandidateDiagnosticCode.NaturalRemainderAccepted,
+                        CandidateDiagnosticSeverity.Information,
+                        "The natural remainder is at least half a tile but below the configured recommended minimum cut.",
+                        axis,
+                        Opposite(controlSide),
+                        physicalRemainder,
+                        minimumCut));
+            }
+
             double transition = half + physicalRemainder;
             bool halfIsLow = halfSideWhenRedistributed == lowSide;
             var redistributed = new List<double>(fullSpanCount + 1);
@@ -410,7 +480,8 @@ namespace TileLayout.Core
                 fullSpanCount - 1,
                 true,
                 redistributed,
-                gridTileSize);
+                gridTileSize,
+                minimumCutRatio);
             return AxisPlanBuildResult.Success(
                 redistributedPlan,
                 new CandidateDiagnostic(
@@ -447,7 +518,8 @@ namespace TileLayout.Core
                 plan.InteriorFullTileCount,
                 plan.UsesRedistribution,
                 new List<double>(plan.SegmentWidths),
-                plan.GridTileSize);
+                plan.GridTileSize,
+                plan.RecommendedMinimumCutRatio);
         }
 
         private static void ValidateDoorOpening(

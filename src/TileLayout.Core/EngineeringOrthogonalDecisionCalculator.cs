@@ -171,7 +171,7 @@ namespace TileLayout.Core
             if (policyAffected.Count > 0
                 && !hasCandidateThatDoesNotNeedMissingPolicy
                 && !allowsVisualConfirmation)
-                requirements.Add(new DecisionRequirement(DecisionRequirementCode.ProjectSecondAbsoluteMinimum, DecisionRequirementLevel.ProjectPolicy, "At least one candidate contains a boundary cut below the recommended minimum and the project absolute minimum is unset.", "Set the project absolute minimum once; the supplied millimetre value will be compared with every applicable boundary cut.", new List<string> { "SetPolicy", "KeepUnset" }, policyAffected));
+                requirements.Add(new DecisionRequirement(DecisionRequirementCode.ProjectSecondAbsoluteMinimum, DecisionRequirementLevel.ProjectPolicy, "At least one candidate contains a boundary cut below the recommended minimum and the project absolute minimum is unset.", "Set the project absolute minimum once in millimetres or as a tile-size ratio; it will be compared with every applicable boundary cut.", new List<string> { "SetPolicy", "KeepUnset" }, policyAffected));
 
             List<EvaluatedLayoutCandidate> retained = candidates.Where(candidate =>
                 candidate.State == LayoutCandidateState.AutomaticUsable

@@ -132,6 +132,52 @@ namespace TileLayout.Core.Tests
         }
 
         [TestMethod]
+        public void Calculate_ConfiguredMinimumCutRatioChangesBoundaryTreatment()
+        {
+            AxisAlignedRectangle room = new AxisAlignedRectangle(
+                0.0,
+                1460.0,
+                0.0,
+                1200.0);
+            DoorOpening door = new DoorOpening(
+                RoomSide.West,
+                400.0,
+                800.0);
+            var legacyParameters = new EngineeringRectangularLayoutParameters(
+                600.0,
+                600.0,
+                door);
+            var configuredParameters = new EngineeringRectangularLayoutParameters(
+                600.0,
+                600.0,
+                door,
+                0.0,
+                0.75);
+
+            EngineeringRectangularLayoutResult legacy =
+                EngineeringRectangularLayoutCalculator.Calculate(
+                    room,
+                    legacyParameters);
+            EngineeringRectangularLayoutResult configured =
+                EngineeringRectangularLayoutCalculator.Calculate(
+                    room,
+                    configuredParameters);
+            BoundaryBandPlan legacyX =
+                legacy.DefaultCandidate.GetAxisPlan(TileLayoutAxis.X);
+            BoundaryBandPlan configuredX =
+                configured.DefaultCandidate.GetAxisPlan(TileLayoutAxis.X);
+
+            Assert.AreEqual(0.42, legacyX.RecommendedMinimumCutRatio,
+                GeometryTolerance.Coordinate);
+            Assert.AreEqual(0.75, configuredX.RecommendedMinimumCutRatio,
+                GeometryTolerance.Coordinate);
+            Assert.IsFalse(legacyX.UsesRedistribution);
+            Assert.IsTrue(configuredX.UsesRedistribution);
+            Assert.AreEqual(450.0, configuredX.MinimumCut,
+                GeometryTolerance.Coordinate);
+        }
+
+        [TestMethod]
         public void Calculate_ArtificialSample02_AssignsDoorNormalAndAlongWallBands()
         {
             EngineeringRectangularLayoutResult result = Calculate(

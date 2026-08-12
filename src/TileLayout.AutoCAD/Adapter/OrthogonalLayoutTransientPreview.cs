@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.Colors;
+using Autodesk.AutoCAD.DatabaseServices;
 using AcadLine = Autodesk.AutoCAD.DatabaseServices.Line;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.AutoCAD.Geometry;
@@ -15,8 +16,8 @@ namespace TileLayout.AutoCAD.Adapter
     {
         private static Document ownerDocument;
         private static LayoutDrawingPlan visiblePlan;
-        private static readonly List<AcadLine> visibleTransients =
-            new List<AcadLine>();
+        private static readonly List<Entity> visibleTransients =
+            new List<Entity>();
         private static TransientManager transientManager;
         private static IntegerCollection viewportNumbers;
         private static int transientSubDrawingMode;
@@ -84,13 +85,24 @@ namespace TileLayout.AutoCAD.Adapter
                         continue;
                     }
 
-                    Draw(editor, line.Geometry, 3, false);
+                    Draw(
+                        editor,
+                        line.Geometry,
+                        plan.ColorSettings.DivisionLineColorIndex,
+                        false);
                 }
 
                 foreach (LayoutDrawingLine line in plan.Connections)
                 {
-                    Draw(editor, line.Geometry, 2, true);
+                    Draw(
+                        editor,
+                        line.Geometry,
+                        plan.ColorSettings.DivisionLineColorIndex,
+                        true);
                 }
+
+                DrawDimensions(document.Database, plan);
+                DrawStartPoint(document.Database, plan);
 
                 DrawCutDiagnostics(
                     editor,
@@ -175,6 +187,10 @@ namespace TileLayout.AutoCAD.Adapter
             Editor editor,
             LayoutDrawingPlan plan)
         {
+            int colorIndex = plan.PlasterThicknessMm
+                > GeometryTolerance.Coordinate
+                ? plan.ColorSettings.PlasterBoundaryColorIndex
+                : 8;
             for (int index = 0; index < plan.RoomOutline.Count; index++)
             {
                 Draw(
@@ -182,7 +198,7 @@ namespace TileLayout.AutoCAD.Adapter
                     new LineSegment3D(
                         plan.RoomOutline[index],
                         plan.RoomOutline[(index + 1) % plan.RoomOutline.Count]),
-                    8,
+                    colorIndex,
                     false);
             }
         }
@@ -216,6 +232,54 @@ namespace TileLayout.AutoCAD.Adapter
                                 ? 30
                                 : 4;
                 DrawClosedOutline(editor, tile.Outline, color, selected);
+            }
+        }
+
+        private static void DrawDimensions(
+            Database database,
+            LayoutDrawingPlan plan)
+        {
+            ObjectId architecturalTickBlockId =
+                OrthogonalLayoutDimensionStyle
+                    .GetTransientArchitecturalTickBlockId(database);
+            foreach (LayoutDrawingDimension dimension in plan.Dimensions)
+            {
+                Entity transient = OrthogonalLayoutDimensionEntityFactory
+                    .CreateTransient(
+                    database,
+                    dimension,
+                    plan.ColorSettings,
+                    architecturalTickBlockId);
+                try
+                {
+                    AddTransient(transient);
+                }
+                catch
+                {
+                    transient.Dispose();
+                    throw;
+                }
+            }
+        }
+
+        private static void DrawStartPoint(
+            Database database,
+            LayoutDrawingPlan plan)
+        {
+            foreach (Entity transient
+                in OrthogonalLayoutStartPointEntityFactory.CreateTransient(
+                    database,
+                    plan))
+            {
+                try
+                {
+                    AddTransient(transient);
+                }
+                catch
+                {
+                    transient.Dispose();
+                    throw;
+                }
             }
         }
 
@@ -320,23 +384,28 @@ namespace TileLayout.AutoCAD.Adapter
                 (short)colorIndex);
             try
             {
-                if (!transientManager.AddTransient(
-                    transient,
-                    TransientDrawingMode.Main,
-                    transientSubDrawingMode,
-                    viewportNumbers))
-                {
-                    throw new InvalidOperationException(
-                        "AutoCAD 无法注册临时预览对象。" );
-                }
-
-                visibleTransients.Add(transient);
+                AddTransient(transient);
             }
             catch
             {
                 transient.Dispose();
                 throw;
             }
+        }
+
+        private static void AddTransient(Entity transient)
+        {
+            if (!transientManager.AddTransient(
+                transient,
+                TransientDrawingMode.Main,
+                transientSubDrawingMode,
+                viewportNumbers))
+            {
+                throw new InvalidOperationException(
+                    "AutoCAD 无法注册临时预览对象。" );
+            }
+
+            visibleTransients.Add(transient);
         }
 
         private static void EnsureTransientDrawingContext()
@@ -373,7 +442,7 @@ namespace TileLayout.AutoCAD.Adapter
             TransientManager manager = transientManager;
             IntegerCollection viewports = viewportNumbers;
             bool regenRequired = false;
-            foreach (AcadLine transient in visibleTransients)
+            foreach (Entity transient in visibleTransients)
             {
                 try
                 {

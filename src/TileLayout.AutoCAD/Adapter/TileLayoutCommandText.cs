@@ -520,7 +520,7 @@ namespace TileLayout.AutoCAD.Adapter
                     return string.Format(
                         CultureInfo.InvariantCulture,
                         "{0}自然窄余量 {1} mm 已按半砖/过渡砖重分配"
-                            + "（默认下限 {2} mm）",
+                            + "（当前下限 {2} mm）",
                         axis,
                         FormatOptionalNumber(diagnostic.ActualValue),
                         FormatOptionalNumber(diagnostic.Threshold));
@@ -547,7 +547,7 @@ namespace TileLayout.AutoCAD.Adapter
                 case CandidateDiagnosticCode.MinimumCutNotMet:
                     return string.Format(
                         CultureInfo.InvariantCulture,
-                        "{0}边界砖 {1} mm 小于默认下限 {2} mm",
+                        "{0}边界砖 {1} mm 小于当前下限 {2} mm",
                         axis,
                         FormatOptionalNumber(diagnostic.ActualValue),
                         FormatOptionalNumber(diagnostic.Threshold));

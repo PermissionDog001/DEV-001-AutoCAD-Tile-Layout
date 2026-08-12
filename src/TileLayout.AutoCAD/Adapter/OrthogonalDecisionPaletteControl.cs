@@ -52,6 +52,17 @@ namespace TileLayout.AutoCAD.Adapter
             "预览与结束"
         };
 
+        private static readonly AciColorChoice[] CommonAciColors =
+        {
+            new AciColorChoice(1, "ACI 1 — 红色"),
+            new AciColorChoice(2, "ACI 2 — 黄色"),
+            new AciColorChoice(3, "ACI 3 — 绿色"),
+            new AciColorChoice(4, "ACI 4 — 青色"),
+            new AciColorChoice(5, "ACI 5 — 蓝色"),
+            new AciColorChoice(6, "ACI 6 — 品红"),
+            new AciColorChoice(7, "ACI 7 — 白色")
+        };
+
         // Keep the candidate page usable when the floating dialog is resized
         // below its preferred height.  The outer page scrolls instead of
         // allowing the list/detail rows to collapse to zero height.
@@ -97,34 +108,63 @@ namespace TileLayout.AutoCAD.Adapter
         };
         private readonly TextBox policyVersion = new TextBox { Text = "P-1" };
         private readonly TextBox secondMinimum = new TextBox();
-        private readonly Label recommendedMinimum = CreateWrapLabel();
-        private readonly CheckBox confirmRecommendedMinimum = new CheckBox
+        private readonly TextBox recommendedMinimumRatio = new TextBox
         {
-            Text = "我已确认本项目采用固定推荐下限 0.42T",
+            Text = "0.5"
+        };
+        private readonly Label recommendedMinimum = CreateWrapLabel();
+        private readonly RadioButton numericAbsoluteMinimum = new RadioButton
+        {
+            Text = "设置项目最低允许尺寸或比例（毫米或比例二选一）",
             AutoSize = true
         };
-        private readonly CheckBox absoluteMinimumUnconfirmed = new CheckBox
+        private readonly RadioButton absoluteMinimumMillimeters = new RadioButton
         {
-            Text = "项目绝对下限尚未确认",
+            Text = "最低允许尺寸（mm）",
             AutoSize = true,
             Checked = true
         };
-        private readonly CheckBox visualConfirmationMode = new CheckBox
+        private readonly RadioButton absoluteMinimumRatio = new RadioButton
         {
-            Text = "按图面确认（不设置数值绝对下限）",
+            Text = "最低允许比例（T）",
             AutoSize = true
+        };
+        private readonly TableLayoutPanel minimumInputOptions =
+            new TableLayoutPanel
+            {
+                AutoSize = true,
+                ColumnCount = 2,
+                RowCount = 2,
+                Dock = DockStyle.Top,
+                Margin = new Padding(20, 0, 0, 0)
+            };
+        private readonly RadioButton absoluteMinimumUnconfirmed = new RadioButton
+        {
+            Text = "暂不决定（只查看，不写回）",
+            AutoSize = true
+        };
+        private readonly RadioButton visualConfirmationMode = new RadioButton
+        {
+            Text = "按图面确认（不设置固定数值）",
+            AutoSize = true,
+            Checked = true
+        };
+        private readonly TextBox projectMinimumRatio = new TextBox
+        {
+            Text = "0.5"
         };
         private readonly CheckBox preferWallCornerAlignment = new CheckBox
         {
-            Text = "墙角对缝优先（可选，默认关闭）",
+            Text = "优先考虑房间转角处的砖缝（可选）",
             AutoSize = true
         };
         private readonly Button applyProject = new Button
         {
-            Text = "保存项目铺贴规则",
+            Text = "保存项目规则",
             AutoSize = true
         };
         private readonly Label projectStatus = CreateWrapLabel();
+        private readonly Label projectRuleHelp = CreateReasonLabel();
 
         private readonly RadioButton wholeRoom = new RadioButton
         {
@@ -216,6 +256,35 @@ namespace TileLayout.AutoCAD.Adapter
             Text = "在图中显示角点分格诊断（只读）",
             AutoSize = true
         };
+        private readonly CheckBox automaticDimensions = new CheckBox
+        {
+            Text = "自动添加尺寸标注（建筑样式，默认勾选）",
+            AutoSize = true,
+            Checked = true
+        };
+        private readonly CheckBox roomFeatureDimensions = new CheckBox
+        {
+            Text = "标注房间凹边、凸边、转角等台阶尺寸（可选）",
+            AutoSize = true
+        };
+        private readonly RadioButton dimensionsInsideRoom = new RadioButton
+        {
+            Text = "标注位置：房间内（默认）",
+            AutoSize = true,
+            Checked = true
+        };
+        private readonly RadioButton dimensionsOutsideRoom = new RadioButton
+        {
+            Text = "标注位置：房间外（外置尺寸链）",
+            AutoSize = true
+        };
+        private readonly ComboBox divisionLineColor = CreateAciColorComboBox();
+        private readonly ComboBox tileDimensionColor = CreateAciColorComboBox();
+        private readonly ComboBox boundaryFeatureDimensionColor =
+            CreateAciColorComboBox();
+        private readonly ComboBox plasterBoundaryColor =
+            CreateAciColorComboBox();
+        private readonly Label dimensionSettingsStatus = CreateWrapLabel();
         private readonly CheckBox neutralRegionDetailsToggle = new CheckBox
         {
             Text = "展开房间结构参考（只读）",
@@ -264,7 +333,6 @@ namespace TileLayout.AutoCAD.Adapter
         private OrthogonalDecisionGuidedWorkflow workflow =
             new OrthogonalDecisionGuidedWorkflow();
         private bool refreshing;
-        private bool updatingProjectAbsoluteMinimumMode;
         private IReadOnlyList<GuidedCandidatePresentation> renderedCandidateView;
         private GuidedEliminatedGroup? renderedEliminatedFilter;
         private int renderedEliminatedPageIndex = -1;
@@ -283,6 +351,8 @@ namespace TileLayout.AutoCAD.Adapter
         private string renderedWallCornerDetails;
         private double pendingTileWidth = 600.0;
         private double pendingTileHeight = 600.0;
+        private double pendingRecommendedMinimumRatio =
+            EngineeringLayoutRules.GuidedDefaultMinimumCutRatio;
         private double pendingGroutWidth = 1.5;
         private double pendingPlasterThickness;
 
@@ -296,6 +366,10 @@ namespace TileLayout.AutoCAD.Adapter
             mode.Items.Add("项目执行");
             mode.Items.Add("方案研究");
             mode.SelectedIndex = 0;
+            InitializeAciColorComboBox(divisionLineColor, 3);
+            InitializeAciColorComboBox(tileDimensionColor, 2);
+            InitializeAciColorComboBox(boundaryFeatureDimensionColor, 6);
+            InitializeAciColorComboBox(plasterBoundaryColor, 4);
             eliminatedFilter.Items.Add(new EliminatedFilterItem(null, "全部淘汰原因"));
             foreach (GuidedEliminatedGroup group in Enum.GetValues(
                 typeof(GuidedEliminatedGroup)))
@@ -362,17 +436,27 @@ namespace TileLayout.AutoCAD.Adapter
             renderedWallCornerDetails = null;
             pendingTileWidth = 600.0;
             pendingTileHeight = 600.0;
+            pendingRecommendedMinimumRatio =
+                EngineeringLayoutRules.GuidedDefaultMinimumCutRatio;
             pendingGroutWidth = 1.5;
             pendingPlasterThickness = 0.0;
             tileWidth.Text = "600";
             tileHeight.Text = "600";
+            recommendedMinimumRatio.Text =
+                EngineeringLayoutRules.GuidedDefaultMinimumCutRatio
+                    .ToString("0.##", CultureInfo.InvariantCulture);
             groutWidth.Text = "1.5";
             plasterThickness.Text = "0";
             policyVersion.Text = "P-1";
             secondMinimum.Text = string.Empty;
-            confirmRecommendedMinimum.Checked = false;
-            absoluteMinimumUnconfirmed.Checked = true;
-            visualConfirmationMode.Checked = false;
+            numericAbsoluteMinimum.Checked = false;
+            absoluteMinimumMillimeters.Checked = true;
+            absoluteMinimumRatio.Checked = false;
+            absoluteMinimumUnconfirmed.Checked = false;
+            visualConfirmationMode.Checked = true;
+            projectMinimumRatio.Text =
+                EngineeringLayoutRules.GuidedDefaultMinimumCutRatio
+                    .ToString("0.##", CultureInfo.InvariantCulture);
             mode.SelectedIndex = 0;
             wholeRoom.Checked = false;
             mainSecondary.Checked = false;
@@ -381,6 +465,14 @@ namespace TileLayout.AutoCAD.Adapter
             showAllAssessedTiles.Checked = false;
             showNeutralRegions.Checked = false;
             showWallCornerDiagnostics.Checked = false;
+            automaticDimensions.Checked = true;
+            roomFeatureDimensions.Checked = false;
+            dimensionsInsideRoom.Checked = true;
+            dimensionsOutsideRoom.Checked = false;
+            SetAciColorSelection(divisionLineColor, 3);
+            SetAciColorSelection(tileDimensionColor, 2);
+            SetAciColorSelection(boundaryFeatureDimensionColor, 6);
+            SetAciColorSelection(plasterBoundaryColor, 4);
             preferWallCornerAlignment.Checked = false;
             neutralRegionDetailsToggle.Checked = false;
             }
@@ -472,10 +564,6 @@ namespace TileLayout.AutoCAD.Adapter
                 pendingTileHeight,
                 pendingGroutWidth,
                 pendingPlasterThickness);
-            if (result.IsValid)
-            {
-                confirmRecommendedMinimum.Checked = false;
-            }
             RefreshView();
             return result;
         }
@@ -624,33 +712,65 @@ namespace TileLayout.AutoCAD.Adapter
             panel.Controls.Add(selectRoom);
             panel.Controls.Add(roomStatus);
             panel.Controls.Add(roomDisabledReason);
-            panel.Controls.Add(CreateSectionLabel("项目铺贴规则"));
-            panel.Controls.Add(recommendedMinimum);
-            panel.Controls.Add(confirmRecommendedMinimum);
+            panel.Controls.Add(CreateSectionLabel("自动尺寸标注与图面颜色"));
+            panel.Controls.Add(automaticDimensions);
+            panel.Controls.Add(new Label
+            {
+                Text = "大面选择房间内连续通长/通宽的代表性第一行和第一列，链内每块砖逐块标注。"
+                    + "特殊切砖、异形砖和特殊位置每个方向只补充最长必要尺寸并自动去重。",
+                AutoSize = true,
+                MaximumSize = new Size(520, 0)
+            });
+            panel.Controls.Add(dimensionsInsideRoom);
+            panel.Controls.Add(dimensionsOutsideRoom);
+            panel.Controls.Add(roomFeatureDimensions);
             panel.Controls.Add(CreateFieldRow(
-                "项目绝对下限（mm）",
-                secondMinimum));
-            panel.Controls.Add(absoluteMinimumUnconfirmed);
+                "瓷砖分割线颜色",
+                divisionLineColor));
+            panel.Controls.Add(CreateFieldRow(
+                "瓷砖尺寸标注颜色",
+                tileDimensionColor));
+            panel.Controls.Add(CreateFieldRow(
+                "凹凸/特殊标注颜色",
+                boundaryFeatureDimensionColor));
+            panel.Controls.Add(CreateFieldRow(
+                "抹灰边界颜色",
+                plasterBoundaryColor));
+            panel.Controls.Add(dimensionSettingsStatus);
+            panel.Controls.Add(CreateSectionLabel("项目铺贴规则"));
+            panel.Controls.Add(CreateFieldRow(
+                "建议下限比例（T）",
+                recommendedMinimumRatio));
+            panel.Controls.Add(recommendedMinimum);
+            panel.Controls.Add(CreateSectionLabel("项目最低允许尺寸"));
+            panel.Controls.Add(numericAbsoluteMinimum);
+            minimumInputOptions.ColumnStyles.Clear();
+            minimumInputOptions.ColumnStyles.Add(
+                new ColumnStyle(SizeType.Absolute, 250));
+            minimumInputOptions.ColumnStyles.Add(
+                new ColumnStyle(SizeType.Percent, 100));
+            secondMinimum.Width = 180;
+            projectMinimumRatio.Width = 180;
+            minimumInputOptions.Controls.Add(
+                absoluteMinimumMillimeters,
+                0,
+                0);
+            minimumInputOptions.Controls.Add(secondMinimum, 1, 0);
+            minimumInputOptions.Controls.Add(
+                absoluteMinimumRatio,
+                0,
+                1);
+            minimumInputOptions.Controls.Add(projectMinimumRatio, 1, 1);
+            panel.Controls.Add(minimumInputOptions);
             panel.Controls.Add(visualConfirmationMode);
-            panel.Controls.Add(new Label
-            {
-                Text = "项目绝对下限请选择一种状态：填写数值、按图面确认，或保持尚未决定。按图面确认只允许明确选择后的候选进入预览和正式写回。",
-                AutoSize = true,
-                MaximumSize = new Size(520, 0)
-            });
+            panel.Controls.Add(absoluteMinimumUnconfirmed);
+            panel.Controls.Add(projectRuleHelp);
             panel.Controls.Add(preferWallCornerAlignment);
-            panel.Controls.Add(new Label
-            {
-                Text = "勾选后才运行可选质量候选搜索，并在可保留候选中优先避开入口第一视觉范围内低于推荐下限的窄砖，再考虑角点的 2/3 安全分格；关闭时沿用 G1 候选生成与顺序。绝对下限硬淘汰和原始指标不变。",
-                AutoSize = true,
-                MaximumSize = new Size(520, 0)
-            });
             panel.Controls.Add(applyProject);
             panel.Controls.Add(projectStatus);
             panel.Controls.Add(new Label
             {
-                Text = "房间内部区域由程序自动分解，仅作为计算和只读核对依据。"
-                    + "自动区域共享边两侧沿用同一套全房砖缝相位，不在共享边重新起铺。",
+                Text = "房间内部区域由程序自动识别，仅用于计算和只读核对。",
                 AutoSize = true,
                 MaximumSize = new Size(520, 0)
             });
@@ -823,7 +943,8 @@ namespace TileLayout.AutoCAD.Adapter
             drawing.Controls.Add(new Label
             {
                 Text = "先在第 3 页选择或确认可保留方案，再显示同源临时矢量。"
-                    + "窄砖轮廓、尺寸和原因随预览显示；正式写回只在最后确认后执行。",
+                    + "窄砖轮廓、尺寸和原因随预览显示；自动标注及颜色、位置设置在第 1 页，"
+                    + "正式写回只在最后确认后执行。",
                 AutoSize = true,
                 Dock = DockStyle.Fill,
                 MaximumSize = new Size(560, 0)
@@ -973,15 +1094,33 @@ namespace TileLayout.AutoCAD.Adapter
                 try
                 {
                     workflow.CancelAll();
-                    confirmRecommendedMinimum.Checked = false;
-                    absoluteMinimumUnconfirmed.Checked = true;
-                    visualConfirmationMode.Checked = false;
+                    pendingRecommendedMinimumRatio =
+                        EngineeringLayoutRules.GuidedDefaultMinimumCutRatio;
+                    recommendedMinimumRatio.Text =
+                        EngineeringLayoutRules.GuidedDefaultMinimumCutRatio
+                            .ToString("0.##", CultureInfo.InvariantCulture);
+                    numericAbsoluteMinimum.Checked = false;
+                    absoluteMinimumMillimeters.Checked = true;
+                    absoluteMinimumRatio.Checked = false;
+                    absoluteMinimumUnconfirmed.Checked = false;
+                    visualConfirmationMode.Checked = true;
+                    projectMinimumRatio.Text =
+                        EngineeringLayoutRules.GuidedDefaultMinimumCutRatio
+                            .ToString("0.##", CultureInfo.InvariantCulture);
                     secondMinimum.Text = string.Empty;
                     showEliminatedCandidates.Checked = false;
                     eliminatedFilter.SelectedIndex = 0;
                     showAllAssessedTiles.Checked = false;
                     showNeutralRegions.Checked = false;
                     showWallCornerDiagnostics.Checked = false;
+                    automaticDimensions.Checked = true;
+                    roomFeatureDimensions.Checked = false;
+                    dimensionsInsideRoom.Checked = true;
+                    dimensionsOutsideRoom.Checked = false;
+                    SetAciColorSelection(divisionLineColor, 3);
+                    SetAciColorSelection(tileDimensionColor, 2);
+                    SetAciColorSelection(boundaryFeatureDimensionColor, 6);
+                    SetAciColorSelection(plasterBoundaryColor, 4);
                     preferWallCornerAlignment.Checked = false;
                     neutralRegionDetailsToggle.Checked = false;
                 }
@@ -993,6 +1132,12 @@ namespace TileLayout.AutoCAD.Adapter
                 RefreshView();
             };
             engineeringToggle.CheckedChanged += (sender, args) => RefreshView();
+            numericAbsoluteMinimum.CheckedChanged +=
+                OnProjectAbsoluteMinimumModeChanged;
+            absoluteMinimumMillimeters.CheckedChanged +=
+                OnProjectAbsoluteMinimumModeChanged;
+            absoluteMinimumRatio.CheckedChanged +=
+                OnProjectAbsoluteMinimumModeChanged;
             absoluteMinimumUnconfirmed.CheckedChanged +=
                 OnProjectAbsoluteMinimumModeChanged;
             visualConfirmationMode.CheckedChanged +=
@@ -1029,6 +1174,22 @@ namespace TileLayout.AutoCAD.Adapter
             showNeutralRegions.CheckedChanged += OnDiagnosticOptionsChanged;
             showWallCornerDiagnostics.CheckedChanged +=
                 OnDiagnosticOptionsChanged;
+            automaticDimensions.CheckedChanged +=
+                OnAutomaticDimensionsChanged;
+            roomFeatureDimensions.CheckedChanged +=
+                OnRoomFeatureDimensionsChanged;
+            dimensionsInsideRoom.CheckedChanged +=
+                OnDimensionPlacementChanged;
+            dimensionsOutsideRoom.CheckedChanged +=
+                OnDimensionPlacementChanged;
+            divisionLineColor.SelectedIndexChanged +=
+                OnDimensionColorsChanged;
+            tileDimensionColor.SelectedIndexChanged +=
+                OnDimensionColorsChanged;
+            boundaryFeatureDimensionColor.SelectedIndexChanged +=
+                OnDimensionColorsChanged;
+            plasterBoundaryColor.SelectedIndexChanged +=
+                OnDimensionColorsChanged;
             preferWallCornerAlignment.CheckedChanged +=
                 OnWallCornerPreferenceChanged;
             tabs.SelectedIndexChanged += OnTabSelected;
@@ -1038,31 +1199,6 @@ namespace TileLayout.AutoCAD.Adapter
             object sender,
             EventArgs args)
         {
-            if (updatingProjectAbsoluteMinimumMode)
-            {
-                UpdateProjectAbsoluteMinimumModeControls();
-                return;
-            }
-
-            updatingProjectAbsoluteMinimumMode = true;
-            try
-            {
-                if (ReferenceEquals(sender, visualConfirmationMode)
-                    && visualConfirmationMode.Checked)
-                {
-                    absoluteMinimumUnconfirmed.Checked = false;
-                }
-                else if (ReferenceEquals(sender, absoluteMinimumUnconfirmed)
-                    && absoluteMinimumUnconfirmed.Checked)
-                {
-                    visualConfirmationMode.Checked = false;
-                }
-            }
-            finally
-            {
-                updatingProjectAbsoluteMinimumMode = false;
-            }
-
             UpdateProjectAbsoluteMinimumModeControls();
             if (!refreshing)
             {
@@ -1072,34 +1208,66 @@ namespace TileLayout.AutoCAD.Adapter
 
         private void UpdateProjectAbsoluteMinimumModeControls()
         {
-            secondMinimum.Enabled = !absoluteMinimumUnconfirmed.Checked
-                && !visualConfirmationMode.Checked;
+            minimumInputOptions.Enabled = numericAbsoluteMinimum.Checked;
+            secondMinimum.Enabled = numericAbsoluteMinimum.Checked
+                && absoluteMinimumMillimeters.Checked;
+            projectMinimumRatio.Enabled = numericAbsoluteMinimum.Checked
+                && absoluteMinimumRatio.Checked;
         }
 
         private void OnApplyProject(object sender, EventArgs args)
         {
+            string ratioError;
+            if (!TryReadRecommendedMinimumRatio(out ratioError))
+            {
+                workflow.EndHostAction(ratioError);
+                RefreshView();
+                return;
+            }
+
             double? minimum = null;
+            double? minimumRatio = null;
             ProjectAbsoluteMinimumMode minimumMode =
                 ProjectAbsoluteMinimumMode.NotDecided;
             if (visualConfirmationMode.Checked)
             {
                 minimumMode = ProjectAbsoluteMinimumMode.VisualConfirmation;
             }
-            else if (!absoluteMinimumUnconfirmed.Checked)
+            else if (numericAbsoluteMinimum.Checked)
             {
-                double parsed;
-                if (!OrthogonalDecisionGuidedText.TryParsePositiveMillimeters(
-                    secondMinimum.Text,
-                    out parsed))
+                if (absoluteMinimumMillimeters.Checked)
                 {
-                    workflow.EndHostAction(
-                        "项目绝对下限必须是有限正数；如不填写数值，请选择“按图面确认”或“项目绝对下限尚未确认”。" );
-                    RefreshView();
-                    return;
-                }
+                    double parsed;
+                    if (!OrthogonalDecisionGuidedText
+                        .TryParsePositiveMillimeters(
+                            secondMinimum.Text,
+                            out parsed))
+                    {
+                        workflow.EndHostAction(
+                            "最低允许尺寸必须是有限正数；如按比例设置，请选择“最低允许比例”。" );
+                        RefreshView();
+                        return;
+                    }
 
-                minimum = parsed;
-                minimumMode = ProjectAbsoluteMinimumMode.Numeric;
+                    minimum = parsed;
+                    minimumMode = ProjectAbsoluteMinimumMode.Numeric;
+                }
+                else
+                {
+                    string minimumRatioError;
+                    double parsedRatio;
+                    if (!TryReadProjectMinimumRatio(
+                        out parsedRatio,
+                        out minimumRatioError))
+                    {
+                        workflow.EndHostAction(minimumRatioError);
+                        RefreshView();
+                        return;
+                    }
+
+                    minimumRatio = parsedRatio;
+                    minimumMode = ProjectAbsoluteMinimumMode.NumericRatio;
+                }
             }
 
             QueuePreviewClearIfNeeded();
@@ -1107,15 +1275,21 @@ namespace TileLayout.AutoCAD.Adapter
             {
                 workflow.ApplyOrdinaryProjectRules(
                     minimum,
-                    confirmRecommendedMinimum.Checked,
-                    minimumMode);
+                    true,
+                    minimumMode,
+                    pendingRecommendedMinimumRatio,
+                    minimumRatio);
             }
             catch (ArgumentException error)
             {
                 workflow.EndHostAction(
-                    error.ParamName == "recommendedMinimumIsConfirmed"
-                        ? "请先确认固定推荐下限 0.42T。"
-                        : "项目绝对下限必须大于 0，且不得高于 X/Y 两轴推荐下限中的较小值。" );
+                    error.ParamName == "recommendedMinimumCutRatio"
+                        ? "建议下限比例必须大于 0，且不超过 0.75。"
+                        : error.ParamName == "projectAbsoluteMinimumRatio"
+                            ? "最低允许比例必须大于 0、不超过 0.75，且不能高于建议下限比例。"
+                        : error.ParamName == "recommendedMinimumIsConfirmed"
+                            ? "请填写建议下限比例并点击“保存项目规则”。"
+                            : "最低允许尺寸必须大于 0，且不得高于 X/Y 两轴建议下限中的较小值。" );
             }
             RefreshView();
         }
@@ -1249,6 +1423,87 @@ namespace TileLayout.AutoCAD.Adapter
                 showWallCornerDiagnostics.Checked);
             RefreshTransientDiagnosticIfVisible();
             RefreshStatusOnly();
+        }
+
+        private void OnAutomaticDimensionsChanged(
+            object sender,
+            EventArgs args)
+        {
+            if (refreshing)
+            {
+                return;
+            }
+
+            QueuePreviewClearIfNeeded();
+            workflow.SetAutomaticDimensioning(automaticDimensions.Checked);
+            RefreshView();
+        }
+
+        private void OnRoomFeatureDimensionsChanged(
+            object sender,
+            EventArgs args)
+        {
+            if (refreshing)
+            {
+                return;
+            }
+
+            QueuePreviewClearIfNeeded();
+            workflow.SetRoomFeatureDimensioning(
+                roomFeatureDimensions.Checked);
+            RefreshView();
+        }
+
+        private void OnDimensionPlacementChanged(
+            object sender,
+            EventArgs args)
+        {
+            var radio = sender as RadioButton;
+            if (refreshing || radio == null || !radio.Checked)
+            {
+                return;
+            }
+
+            QueuePreviewClearIfNeeded();
+            workflow.SetDimensionPlacement(
+                dimensionsInsideRoom.Checked
+                    ? LayoutDrawingDimensionPlacement.InsideRoom
+                    : LayoutDrawingDimensionPlacement.OutsideRoom);
+            RefreshView();
+        }
+
+        private void OnDimensionColorsChanged(
+            object sender,
+            EventArgs args)
+        {
+            if (refreshing)
+            {
+                return;
+            }
+
+            AciColorChoice division =
+                divisionLineColor.SelectedItem as AciColorChoice;
+            AciColorChoice tile =
+                tileDimensionColor.SelectedItem as AciColorChoice;
+            AciColorChoice feature =
+                boundaryFeatureDimensionColor.SelectedItem
+                    as AciColorChoice;
+            AciColorChoice plaster =
+                plasterBoundaryColor.SelectedItem as AciColorChoice;
+            if (division == null || tile == null || feature == null
+                || plaster == null)
+            {
+                return;
+            }
+
+            QueuePreviewClearIfNeeded();
+            workflow.SetColorSettings(
+                new LayoutDrawingColorSettings(
+                    division.ColorIndex,
+                    tile.ColorIndex,
+                    feature.ColorIndex,
+                    plaster.ColorIndex));
+            RefreshView();
         }
 
         private void RefreshTransientDiagnosticIfVisible()
@@ -1479,6 +1734,75 @@ namespace TileLayout.AutoCAD.Adapter
             return true;
         }
 
+        private bool TryReadRecommendedMinimumRatio(out string error)
+        {
+            error = string.Empty;
+            double parsed;
+            if (!double.TryParse(
+                recommendedMinimumRatio.Text,
+                NumberStyles.Float,
+                CultureInfo.CurrentCulture,
+                out parsed))
+            {
+                error = "建议下限比例必须是数字，默认值为 0.5。";
+                return false;
+            }
+
+            try
+            {
+                EngineeringLayoutRules.ValidateMinimumCutRatio(
+                    parsed,
+                    "recommendedMinimumCutRatio");
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                error = "建议下限比例必须大于 0，且不超过 0.75。";
+                return false;
+            }
+
+            pendingRecommendedMinimumRatio = parsed;
+            return true;
+        }
+
+        private bool TryReadProjectMinimumRatio(
+            out double parsed,
+            out string error)
+        {
+            parsed = 0.0;
+            error = string.Empty;
+            if (!double.TryParse(
+                projectMinimumRatio.Text,
+                NumberStyles.Float,
+                CultureInfo.CurrentCulture,
+                out parsed))
+            {
+                error = "最低允许比例必须是数字，例如 0.42。";
+                return false;
+            }
+
+            try
+            {
+                EngineeringLayoutRules.ValidateMinimumCutRatio(
+                    parsed,
+                    "projectAbsoluteMinimumRatio");
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                error = "最低允许比例必须大于 0，且不超过 0.75。";
+                return false;
+            }
+
+            if (parsed
+                > pendingRecommendedMinimumRatio
+                    + GeometryTolerance.Coordinate)
+            {
+                error = "最低允许比例不能高于建议下限比例。";
+                return false;
+            }
+
+            return true;
+        }
+
         private void OnApplyLayoutSettings(object sender, EventArgs args)
         {
             string error;
@@ -1528,11 +1852,53 @@ namespace TileLayout.AutoCAD.Adapter
             invalidation.Visible = !string.IsNullOrWhiteSpace(invalidation.Text);
             tabs.SelectedIndex = productStage;
             UpdateProjectAbsoluteMinimumModeControls();
+            automaticDimensions.Checked = workflow.AutomaticDimensioningEnabled;
+            roomFeatureDimensions.Checked =
+                workflow.RoomFeatureDimensioningEnabled;
+            dimensionsInsideRoom.Checked = workflow.DimensionPlacement
+                == LayoutDrawingDimensionPlacement.InsideRoom;
+            dimensionsOutsideRoom.Checked = workflow.DimensionPlacement
+                == LayoutDrawingDimensionPlacement.OutsideRoom;
+            SetAciColorSelection(
+                divisionLineColor,
+                workflow.ColorSettings.DivisionLineColorIndex);
+            SetAciColorSelection(
+                tileDimensionColor,
+                workflow.ColorSettings.TileDimensionColorIndex);
+            SetAciColorSelection(
+                boundaryFeatureDimensionColor,
+                workflow.ColorSettings.BoundaryFeatureDimensionColorIndex);
+            SetAciColorSelection(
+                plasterBoundaryColor,
+                workflow.ColorSettings.PlasterBoundaryColorIndex);
+            dimensionSettingsStatus.Text = FormatDimensionSettingsStatus();
             preferWallCornerAlignment.Checked = workflow.PreferWallCornerAlignment;
             preferWallCornerAlignment.Enabled = workflow.Input.HasRoom;
             toolTip.SetToolTip(
+                automaticDimensions,
+                "勾选后，大面选择连续通长/通宽的代表性第一行和第一列，链内逐块标注；"
+                    + "特殊切砖、异形砖和特殊位置每个方向只补充最长必要尺寸并自动去重。"
+                    + "尺寸界线锚定在砖边，"
+                    + "正式写入独立标注图层。取消勾选后需重新预览。" );
+            toolTip.SetToolTip(
+                roomFeatureDimensions,
+                "勾选后才标注房间凹边、凸边和转角台阶本身的长度或深度；默认关闭，避免与大面通用标注混杂。" );
+            toolTip.SetToolTip(
+                dimensionsInsideRoom,
+                "尺寸线沿被测砖边显示在房间内，便于在房间图面中观察。" );
+            toolTip.SetToolTip(
+                dimensionsOutsideRoom,
+                "使用房间外的 AutoCAD 建筑图常见外置尺寸链。" );
+            toolTip.SetToolTip(
                 preferWallCornerAlignment,
-                "默认关闭。勾选后运行墙角锚定候选搜索并改变推荐顺序；关闭时沿用 G1 候选生成与顺序。不会放宽绝对下限，也不写入图纸。" );
+                "勾选后，在满足硬性规则的方案中优先比较房间转角处的砖缝和入口观感；不会放宽最低尺寸，也不直接修改图纸。" );
+            toolTip.SetToolTip(
+                recommendedMinimumRatio,
+                "T 表示对应方向的砖尺寸：X 方向使用砖宽，Y 方向使用砖高。"
+                    + "建议下限 = T × 输入比例；允许范围为 0 < 比例 ≤ 0.75。" );
+            toolTip.SetToolTip(
+                projectMinimumRatio,
+                "最低允许比例也按对应方向的砖尺寸换算：X 方向为砖宽 × 比例，Y 方向为砖高 × 比例。" );
 
             requirements.Text = FormatFriendlyRequirements();
             engineeringDetails.Visible = engineeringToggle.Checked;
@@ -1554,25 +1920,32 @@ namespace TileLayout.AutoCAD.Adapter
                             + "已按近似正交规则建立只读计算副本；原始 LINE 未修改。"
                         : string.Empty)
                 : "尚未选择房间边界。";
+            double displayedRecommendedMinimumRatio =
+                workflow.Input.Policy == null
+                    ? pendingRecommendedMinimumRatio
+                    : workflow.Input.Policy.DefaultMinimumCutRatio;
             recommendedMinimum.Text = workflow.Input.HasRoom
                 ? string.Format(
                     CultureInfo.CurrentCulture,
-                    "固定推荐下限 0.42T：X 轴 {0:0.###} mm；Y 轴 {1:0.###} mm。"
-                        + "等于阈值视为满足。该值不可编辑，保存项目前必须明确确认。",
-                    workflow.Input.TileWidth * EngineeringLayoutRules.DefaultMinimumCutRatio,
-                    workflow.Input.TileHeight * EngineeringLayoutRules.DefaultMinimumCutRatio)
-                : "固定推荐下限 0.42T：选择房间并确认砖规格后显示 X/Y 毫米值。";
+                    "建议下限比例 {0:0.###}；T=对应方向砖尺寸（X 用砖宽，Y 用砖高）。"
+                        + "换算结果：X 轴 {1:0.###} mm；Y 轴 {2:0.###} mm。"
+                        + "达到该值视为满足建议，低于该值的方案会按项目规则处理。",
+                    displayedRecommendedMinimumRatio,
+                    workflow.Input.TileWidth * displayedRecommendedMinimumRatio,
+                    workflow.Input.TileHeight * displayedRecommendedMinimumRatio)
+                : "建议下限比例默认 0.5，可修改为 0 < 比例 ≤ 0.75；"
+                    + "T 表示对应方向的砖尺寸，选择房间后显示 X/Y 毫米值。";
+            projectRuleHelp.Text = GetProjectRuleHelpText();
+            projectRuleHelp.Visible = true;
             projectStatus.Text = !workflow.Input.HasRoom
                 ? "当前不能应用：请先在图中选择并验证房间边界。"
                 : workflow.Input.Policy == null
-                    ? "项目规则尚未确认。"
-                    : "项目规则已确认；项目绝对下限："
-                    + (workflow.Input.Policy.HasProjectAbsoluteMinimum
-                        ? workflow.Input.Policy.ProjectAbsoluteMinimumCut.Value.ToString(
-                            "0.###", CultureInfo.CurrentCulture) + " mm"
-                        : workflow.Input.Policy.AllowsVisualConfirmation
-                            ? "按图面确认（不设置数值）"
-                            : "尚未决定") + "。";
+                    ? "项目规则尚未保存。"
+                    : !workflow.RecommendedMinimumConfirmed
+                        ? "房间或设置已变化，请重新保存项目规则。"
+                    : BuildProjectStatusText(
+                        workflow.Input.Policy,
+                        displayedRecommendedMinimumRatio);
             intentStatus.Text = workflow.Input.Policy == null
                 ? "当前不能应用：请先完成项目规则。"
                 : "当前：" + OrthogonalDecisionGuidedText.FormatIntent(
@@ -1624,6 +1997,64 @@ namespace TileLayout.AutoCAD.Adapter
             }
         }
 
+        private string GetProjectRuleHelpText()
+        {
+            if (numericAbsoluteMinimum.Checked
+                && absoluteMinimumMillimeters.Checked)
+            {
+                return "设置最低允许尺寸：低于该尺寸的边砖会被淘汰；介于最低允许尺寸和建议下限之间的方案仍可能需要看图复核。";
+            }
+
+            if (numericAbsoluteMinimum.Checked
+                && absoluteMinimumRatio.Checked)
+            {
+                return "设置最低允许比例：X 方向按砖宽换算，Y 方向按砖高换算；低于换算后的最低尺寸会被淘汰。";
+            }
+
+            if (visualConfirmationMode.Checked)
+            {
+                return "T 表示对应方向的砖尺寸（X 用砖宽，Y 用砖高）。按图面确认：不设置固定最低尺寸；低于建议下限的方案需要在预览中查看后再确认。";
+            }
+
+            return "T 表示对应方向的砖尺寸（X 用砖宽，Y 用砖高）。暂不决定：可以查看计算方案，但项目规则未完成，不能正式写回图纸。";
+        }
+
+        private string BuildProjectStatusText(
+            LayoutPolicyProfile policy,
+            double recommendedMinimumCutRatio)
+        {
+            string prefix = string.Format(
+                CultureInfo.CurrentCulture,
+                "项目规则已保存；建议下限 {0:0.###}T；",
+                recommendedMinimumCutRatio);
+            if (policy.HasProjectAbsoluteMinimum)
+            {
+                if (policy.ProjectAbsoluteMinimumRatio.HasValue)
+                {
+                    return prefix
+                        + "最低允许比例："
+                        + policy.ProjectAbsoluteMinimumRatio.Value.ToString(
+                            "0.###",
+                            CultureInfo.CurrentCulture)
+                        + "；按 X/Y 对应砖尺寸换算，低于换算值的方案会被淘汰。";
+                }
+
+                return prefix
+                    + "最低允许尺寸："
+                    + policy.ProjectAbsoluteMinimumCut.Value.ToString(
+                        "0.###",
+                        CultureInfo.CurrentCulture)
+                    + " mm。低于该尺寸的方案会被淘汰。";
+            }
+
+            if (policy.AllowsVisualConfirmation)
+            {
+                return prefix + "按图面确认，不设置固定最低尺寸。";
+            }
+
+            return prefix + "暂不决定；当前只能查看方案。";
+        }
+
         private void RefreshExpensiveReadOnlyDetails()
         {
             EngineeringOrthogonalDecisionResult result = workflow.Input.Result;
@@ -1654,7 +2085,7 @@ namespace TileLayout.AutoCAD.Adapter
                             workflow.EliminatedCandidateCount)
                         + (preferWallCornerAlignment
                             ? "；当前已启用可选质量搜索及排序（入口视觉窄砖 → 2/3 安全分格 → 盲区窄砖）"
-                            : "；当前按 G1 原始顺序展示，可选质量未参与生成或排序");
+                            : "；当前按基础方案顺序展示，可选质量未参与生成或排序");
                 renderedNeutralRegionDetails = result == null
                         || result.RawResult == null
                     ? "房间结构参考：尚未生成。"
@@ -1918,7 +2349,7 @@ namespace TileLayout.AutoCAD.Adapter
             toolTip.SetToolTip(
                 applyProject,
                 applyProject.Enabled
-                    ? "确认固定推荐下限，并保存项目规则版本与明确填写或明确未确认的项目绝对下限。"
+                    ? "保存建议下限比例，并保存项目最低允许尺寸的处理方式。保存即确认。"
                     : "请先在图中选择并验证房间边界。" );
             applyIntent.Enabled = !formalWritebackInProgress
                 && workflow.Input.Policy != null
@@ -1929,10 +2360,24 @@ namespace TileLayout.AutoCAD.Adapter
                     ? "保存明确选择的铺贴方式。"
                     : "请先保存带版本号的项目铺贴规则。" );
 
+            automaticDimensions.Enabled = !formalWritebackInProgress
+                && workflow.Input.HasRoom
+                && !workflow.PendingAction.HasValue;
+            bool dimensionSettingsEnabled = !formalWritebackInProgress
+                && workflow.Input.HasRoom
+                && !workflow.PendingAction.HasValue;
+            roomFeatureDimensions.Enabled = dimensionSettingsEnabled;
+            dimensionsInsideRoom.Enabled = dimensionSettingsEnabled;
+            dimensionsOutsideRoom.Enabled = dimensionSettingsEnabled;
+            divisionLineColor.Enabled = dimensionSettingsEnabled;
+            tileDimensionColor.Enabled = dimensionSettingsEnabled;
+            boundaryFeatureDimensionColor.Enabled = dimensionSettingsEnabled;
+            plasterBoundaryColor.Enabled = dimensionSettingsEnabled;
+
             writeToDrawing.Enabled = !formalWritebackInProgress
                 && workflow.CanRequestFormalWriteback;
             writebackDisabledReason.Text = writeToDrawing.Enabled
-                ? "最终确认后只写 DivisionLines + Connections；不会写入诊断标记。"
+                ? "最终确认后写入分格线、必要连接边和当前勾选的尺寸标注；不会写入诊断标记。"
                 : workflow.GetFormalWritebackDisabledReason();
             toolTip.SetToolTip(writeToDrawing, writebackDisabledReason.Text);
             writebackDisabledReason.Visible = true;
@@ -2019,7 +2464,7 @@ namespace TileLayout.AutoCAD.Adapter
 
             if (workflow.Input.Policy == null)
             {
-                return "当前待办：确认固定推荐下限，并选择填写项目绝对下限、按图面确认或尚未决定。";
+                return "当前待办：填写建议下限比例，选择项目最低尺寸的处理方式，然后保存项目规则。";
             }
 
             if (workflow.Input.ControlDoor == null)
@@ -2105,7 +2550,11 @@ namespace TileLayout.AutoCAD.Adapter
                 + "说明：" + OrthogonalDecisionGuidedText.FormatCandidateReason(
                     value.Candidate,
                     workflow.Input.TileWidth,
-                    workflow.Input.TileHeight) + Environment.NewLine
+                    workflow.Input.TileHeight,
+                    workflow.Input.Policy == null
+                        ? EngineeringLayoutRules.GuidedDefaultMinimumCutRatio
+                        : workflow.Input.Policy.DefaultMinimumCutRatio)
+                    + Environment.NewLine
                 + "原始顺序：第 "
                 + value.OriginalIndex.ToString(CultureInfo.CurrentCulture)
                 + " 个。完整代码、诊断和指标请展开“工程详情”。"
@@ -2143,6 +2592,25 @@ namespace TileLayout.AutoCAD.Adapter
             return values.Count == 0
                 ? "当前操作均可用；结束只会清除临时预览并保留只读汇总。"
                 : string.Join("；", values) + "。";
+        }
+
+        private string FormatDimensionSettingsStatus()
+        {
+            LayoutDrawingColorSettings settings = workflow.ColorSettings;
+            string placement = workflow.DimensionPlacement
+                == LayoutDrawingDimensionPlacement.InsideRoom
+                ? "房间内"
+                : "房间外";
+            return "当前标注设置：位置=" + placement
+                + "；分割线 ACI " + settings.DivisionLineColorIndex
+                + "；砖尺寸标注 ACI " + settings.TileDimensionColorIndex
+                + "；凹凸/特殊标注 ACI "
+                + settings.BoundaryFeatureDimensionColorIndex
+                + "；抹灰边界 ACI " + settings.PlasterBoundaryColorIndex
+                + "；房间凹凸台阶 "
+                + (workflow.RoomFeatureDimensioningEnabled
+                    ? "已开启"
+                    : "默认关闭");
         }
 
         private IEnumerable<ListBox> CandidateLists()
@@ -2314,6 +2782,53 @@ namespace TileLayout.AutoCAD.Adapter
             return new Button { Text = text, AutoSize = true };
         }
 
+        private static ComboBox CreateAciColorComboBox()
+        {
+            return new ComboBox
+            {
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width = 180
+            };
+        }
+
+        private static void InitializeAciColorComboBox(
+            ComboBox combo,
+            short defaultColorIndex)
+        {
+            combo.BeginUpdate();
+            try
+            {
+                combo.Items.Clear();
+                foreach (AciColorChoice color in CommonAciColors)
+                {
+                    combo.Items.Add(color);
+                }
+
+                SetAciColorSelection(combo, defaultColorIndex);
+            }
+            finally
+            {
+                combo.EndUpdate();
+            }
+        }
+
+        private static void SetAciColorSelection(
+            ComboBox combo,
+            short colorIndex)
+        {
+            for (int index = 0; index < combo.Items.Count; index++)
+            {
+                var color = combo.Items[index] as AciColorChoice;
+                if (color != null && color.ColorIndex == colorIndex)
+                {
+                    combo.SelectedIndex = index;
+                    return;
+                }
+            }
+
+            combo.SelectedIndex = 0;
+        }
+
         private static Label CreateWrapLabel()
         {
             return new Label
@@ -2353,6 +2868,24 @@ namespace TileLayout.AutoCAD.Adapter
                 ReadOnly = true,
                 ScrollBars = ScrollBars.Vertical
             };
+        }
+
+        private sealed class AciColorChoice
+        {
+            public AciColorChoice(short colorIndex, string label)
+            {
+                ColorIndex = colorIndex;
+                Label = label;
+            }
+
+            public short ColorIndex { get; }
+
+            public string Label { get; }
+
+            public override string ToString()
+            {
+                return Label;
+            }
         }
 
         private sealed class CandidateItem

@@ -227,7 +227,7 @@ namespace TileLayout.Core.Tests
 
             string overview = OrthogonalDecisionGuidedText
                 .FormatCandidateOverview(decision.Candidates.First());
-            StringAssert.Contains(overview, "G1 门控分配");
+            StringAssert.Contains(overview, "门洞边界调整");
             StringAssert.Contains(overview, "南北轴");
         }
 
@@ -277,7 +277,7 @@ namespace TileLayout.Core.Tests
 
             StringAssert.Contains(overview, "墙角锚定替代相位");
             StringAssert.Contains(overview, "自然余量达到推荐下限");
-            StringAssert.Contains(overview, "未触发 G1 半砖—过渡砖重分配");
+            StringAssert.Contains(overview, "未触发半砖—过渡砖重分配");
         }
 
         [TestMethod]
@@ -392,7 +392,7 @@ namespace TileLayout.Core.Tests
                         .HighBoundary.Width == 600.0);
             string overview = OrthogonalDecisionGuidedText
                 .FormatCandidateOverview(evaluated);
-            StringAssert.Contains(overview, "G1 门洞门控边界模式");
+            StringAssert.Contains(overview, "门洞边界调整模式");
             StringAssert.Contains(overview, "北墙 600 mm（整砖）");
         }
 

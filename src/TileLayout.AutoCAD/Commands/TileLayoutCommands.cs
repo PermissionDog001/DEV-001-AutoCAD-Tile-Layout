@@ -2164,6 +2164,30 @@ namespace TileLayout.AutoCAD
                 return;
             }
 
+            IReadOnlyList<LayoutDrawingDimension> formalDimensions;
+            if (!control.Workflow.TryGetAuthorizedFormalDimensions(
+                out formalDimensions,
+                out rejectionReason))
+            {
+                control.MarkFormalWritebackFailed(rejectionReason);
+                editor.WriteMessage(
+                    "\n正式尺寸标注写回已拒绝：{0}；当前预览仍保留，需重新点击确认。",
+                    rejectionReason);
+                return;
+            }
+
+            LayoutDrawingStartPoint formalStartPoint;
+            if (!control.Workflow.TryGetAuthorizedFormalStartPoint(
+                out formalStartPoint,
+                out rejectionReason))
+            {
+                control.MarkFormalWritebackFailed(rejectionReason);
+                editor.WriteMessage(
+                    "\n正式起铺点写回已拒绝：{0}；当前预览仍保留，需重新点击确认。",
+                    rejectionReason);
+                return;
+            }
+
             if (!database.TileMode)
             {
                 const string message = "请切换到模型空间后再正式写回；图纸没有变化。";
@@ -2185,30 +2209,97 @@ namespace TileLayout.AutoCAD
                     ObjectId layoutLayerId = EnsureConfirmedLayoutLayer(
                         transaction,
                         database);
+                    ObjectId dimensionLayerId = ObjectId.Null;
+                    if (formalDimensions.Count > 0)
+                    {
+                        dimensionLayerId = EnsureDimensionLayer(
+                            transaction,
+                            database);
+                    }
+                    ObjectId startPointLayerId = ObjectId.Null;
+                    if (formalStartPoint != null)
+                    {
+                        startPointLayerId = EnsureStartPointLayer(
+                            transaction,
+                            database);
+                    }
                     EnsureRoomRangeIsNotAlreadyWrittenInModelSpace(
                         transaction,
                         modelSpaceId,
                         layoutLayerId,
                         control.Workflow.PreviewPlan,
                         formalLines);
+                    if (formalDimensions.Count > 0)
+                    {
+                        EnsureRoomRangeIsNotAlreadyWrittenInModelSpace(
+                            transaction,
+                            modelSpaceId,
+                            dimensionLayerId,
+                            control.Workflow.PreviewPlan,
+                            new List<LayoutDrawingLine>());
+                    }
+                    if (formalStartPoint != null)
+                    {
+                        EnsureRoomRangeIsNotAlreadyWrittenInModelSpace(
+                            transaction,
+                            modelSpaceId,
+                            startPointLayerId,
+                            control.Workflow.PreviewPlan,
+                            new List<LayoutDrawingLine>());
+                    }
+                    ObjectId dimensionStyleId = ObjectId.Null;
+                    if (formalDimensions.Count > 0)
+                    {
+                        dimensionStyleId = OrthogonalLayoutDimensionStyle.Ensure(
+                            database,
+                            transaction);
+                    }
                     EnsureRoomRangeMetadataApplication(
                         transaction,
                         database);
-                    int writtenEntityCount = WriteFormalDrawingLines(
+                    int writtenLineCount = WriteFormalDrawingLines(
                         transaction,
                         database,
                         modelSpaceId,
                         layoutLayerId,
                         control.Workflow.PreviewPlan,
                         formalLines);
-                    if (writtenEntityCount != formalLines.Count)
+                    int writtenDimensionCount = WriteFormalDimensions(
+                        transaction,
+                        database,
+                        modelSpaceId,
+                        dimensionLayerId,
+                        control.Workflow.PreviewPlan,
+                        formalDimensions,
+                        dimensionStyleId);
+                    int writtenStartPointCount = WriteFormalStartPoint(
+                        transaction,
+                        database,
+                        modelSpaceId,
+                        startPointLayerId,
+                        control.Workflow.PreviewPlan,
+                        formalStartPoint);
+                    if (writtenLineCount != formalLines.Count
+                        || writtenDimensionCount != formalDimensions.Count
+                        || writtenStartPointCount
+                            != (formalStartPoint == null
+                                ? 0
+                                : OrthogonalLayoutStartPointEntityFactory
+                                    .ExpectedEntityCount))
                     {
                         throw new InvalidOperationException(
                             string.Format(
                                 System.Globalization.CultureInfo.CurrentCulture,
-                                "正式写回事务已创建 {0} 条线，预期 {1} 条。",
-                                writtenEntityCount,
-                                formalLines.Count));
+                                "正式写回事务已创建 {0} 条线、{1} 个尺寸标注和 {2} 个起铺点对象，预期 {3} 条线、{4} 个尺寸标注和 {5} 个起铺点对象。",
+                                writtenLineCount,
+                                writtenDimensionCount,
+                                writtenStartPointCount,
+                                formalLines.Count,
+                                formalDimensions.Count,
+                                formalStartPoint == null
+                                    ? 0
+                                    : OrthogonalLayoutStartPointEntityFactory
+                                        .ExpectedEntityCount));
                     }
                     transaction.Commit();
                 }
@@ -2245,12 +2336,25 @@ namespace TileLayout.AutoCAD
                     exception.Message);
             }
 
-            control.MarkFormalWritebackSucceeded(formalLines.Count);
+            control.MarkFormalWritebackSucceeded(
+                formalLines.Count
+                    + formalDimensions.Count
+                    + (formalStartPoint == null
+                        ? 0
+                        : OrthogonalLayoutStartPointEntityFactory
+                            .ExpectedEntityCount));
             editor.WriteMessage(
-                "\n已正式追加并核验 {0} 条线到图层 {1}；按房间范围完成重复保护，"
-                    + "仅使用 DivisionLines + Connections。",
+                "\n已正式追加并核验 {0} 条分格线、{1} 个尺寸标注和 {2} 个起铺点对象；"
+                    + "分格线图层为 {3}，标注图层为 {4}，起铺点图层为 {5}；按房间范围完成重复保护。",
                 formalLines.Count,
-                OrthogonalLayoutWritebackPolicy.ConfirmedLayerName);
+                formalDimensions.Count,
+                formalStartPoint == null
+                    ? 0
+                    : OrthogonalLayoutStartPointEntityFactory
+                        .ExpectedEntityCount,
+                OrthogonalLayoutWritebackPolicy.ConfirmedLayerName,
+                OrthogonalLayoutWritebackPolicy.DimensionLayerName,
+                OrthogonalLayoutWritebackPolicy.StartPointLayerName);
             editor.WriteMessage(
                 "\n既有墙线和对象未修改，插件未自动保存 DWG；可用一次 U 或 UNDO 撤销本次全部写回。" );
         }
@@ -2309,6 +2413,119 @@ namespace TileLayout.AutoCAD
                 transaction.AddNewlyCreatedDBObject(layer, true);
                 return layerId;
             }
+        }
+
+        private static ObjectId EnsureDimensionLayer(
+            Transaction transaction,
+            Database database)
+        {
+            LayerTable layerTable = (LayerTable)transaction.GetObject(
+                database.LayerTableId,
+                OpenMode.ForRead);
+            ObjectId layerId;
+            LayerTableRecord layer;
+            if (layerTable.Has(OrthogonalLayoutWritebackPolicy.DimensionLayerName))
+            {
+                layerId = layerTable[
+                    OrthogonalLayoutWritebackPolicy.DimensionLayerName];
+                layer = (LayerTableRecord)transaction.GetObject(
+                    layerId,
+                    OpenMode.ForRead);
+                if (layer.IsLocked)
+                {
+                    throw new InvalidOperationException(
+                        "尺寸标注图层已锁定，无法安全写回；图纸没有变化。" );
+                }
+
+                ObjectId continuousLinetypeId = FindContinuousLinetype(
+                    transaction,
+                    database);
+                if (layer.Color == null
+                    || layer.Color.ColorIndex
+                        != OrthogonalLayoutWritebackPolicy.DimensionLayerColorIndex
+                    || layer.LinetypeObjectId != continuousLinetypeId)
+                {
+                    throw new InvalidOperationException(
+                        "尺寸标注图层已存在但属性不是 ACI 2/Continuous；"
+                            + "为保护既有图层，已拒绝写回。" );
+                }
+
+                return layerId;
+            }
+
+            layerTable.UpgradeOpen();
+            layer = new LayerTableRecord
+            {
+                Name = OrthogonalLayoutWritebackPolicy.DimensionLayerName,
+                Color = Color.FromColorIndex(
+                    ColorMethod.ByAci,
+                    OrthogonalLayoutWritebackPolicy.DimensionLayerColorIndex)
+            };
+            ObjectId continuousId = FindContinuousLinetype(
+                transaction,
+                database);
+            layer.LinetypeObjectId = continuousId;
+            layerId = layerTable.Add(layer);
+            transaction.AddNewlyCreatedDBObject(layer, true);
+            return layerId;
+        }
+
+        private static ObjectId EnsureStartPointLayer(
+            Transaction transaction,
+            Database database)
+        {
+            LayerTable layerTable = (LayerTable)transaction.GetObject(
+                database.LayerTableId,
+                OpenMode.ForRead);
+            ObjectId layerId;
+            LayerTableRecord layer;
+            if (layerTable.Has(
+                OrthogonalLayoutWritebackPolicy.StartPointLayerName))
+            {
+                layerId = layerTable[
+                    OrthogonalLayoutWritebackPolicy.StartPointLayerName];
+                layer = (LayerTableRecord)transaction.GetObject(
+                    layerId,
+                    OpenMode.ForRead);
+                if (layer.IsLocked)
+                {
+                    throw new InvalidOperationException(
+                        "起铺点图层已锁定，无法安全写回；图纸没有变化。" );
+                }
+
+                ObjectId continuousLinetypeId = FindContinuousLinetype(
+                    transaction,
+                    database);
+                if (layer.Color == null
+                    || layer.Color.ColorIndex
+                        != OrthogonalLayoutWritebackPolicy
+                            .StartPointLayerColorIndex
+                    || layer.LinetypeObjectId != continuousLinetypeId)
+                {
+                    throw new InvalidOperationException(
+                        "起铺点图层已存在但属性不是 ACI 3/Continuous；"
+                            + "为保护既有图层，已拒绝写回。" );
+                }
+
+                return layerId;
+            }
+
+            layerTable.UpgradeOpen();
+            layer = new LayerTableRecord
+            {
+                Name = OrthogonalLayoutWritebackPolicy.StartPointLayerName,
+                Color = Color.FromColorIndex(
+                    ColorMethod.ByAci,
+                    OrthogonalLayoutWritebackPolicy
+                        .StartPointLayerColorIndex)
+            };
+            ObjectId continuousId = FindContinuousLinetype(
+                transaction,
+                database);
+            layer.LinetypeObjectId = continuousId;
+            layerId = layerTable.Add(layer);
+            transaction.AddNewlyCreatedDBObject(layer, true);
+            return layerId;
         }
 
         private static ObjectId FindContinuousLinetype(
@@ -2577,7 +2794,12 @@ namespace TileLayout.AutoCAD
                         geometry.End.Z));
                 line.SetDatabaseDefaults(database);
                 line.LayerId = layoutLayerId;
-                line.Color = Color.FromColorIndex(ColorMethod.ByLayer, 256);
+                line.Color = Color.FromColorIndex(
+                    ColorMethod.ByAci,
+                    formalLine.Semantic
+                        == LayoutDrawingLineSemantic.FinishedFaceOutline
+                        ? plan.ColorSettings.PlasterBoundaryColorIndex
+                        : plan.ColorSettings.DivisionLineColorIndex);
                 line.Linetype = "ByLayer";
                 using (var roomRangeData = new ResultBuffer(
                     new TypedValue(
@@ -2608,6 +2830,143 @@ namespace TileLayout.AutoCAD
                 }
                 modelSpace.AppendEntity(line);
                 transaction.AddNewlyCreatedDBObject(line, true);
+                writtenCount++;
+            }
+
+            return writtenCount;
+        }
+
+        private static int WriteFormalDimensions(
+            Transaction transaction,
+            Database database,
+            ObjectId modelSpaceId,
+            ObjectId dimensionLayerId,
+            LayoutDrawingPlan plan,
+            IReadOnlyList<LayoutDrawingDimension> dimensions,
+            ObjectId dimensionStyleId)
+        {
+            if (dimensions == null || dimensions.Count == 0)
+            {
+                return 0;
+            }
+
+            if (dimensionLayerId.IsNull)
+            {
+                throw new InvalidOperationException(
+                    "尺寸标注图层尚未准备好，正式写回已停止。" );
+            }
+
+            BlockTableRecord modelSpace = (BlockTableRecord)transaction.GetObject(
+                modelSpaceId,
+                OpenMode.ForWrite);
+            int writtenCount = 0;
+            foreach (LayoutDrawingDimension dimension in dimensions)
+            {
+                RotatedDimension entity =
+                    OrthogonalLayoutDimensionEntityFactory.Create(
+                        database,
+                        dimension,
+                        plan.ColorSettings,
+                        dimensionStyleId);
+                entity.LayerId = dimensionLayerId;
+                entity.Linetype = "ByLayer";
+                using (var roomRangeData = new ResultBuffer(
+                    new TypedValue(
+                        (int)DxfCode.ExtendedDataRegAppName,
+                        OrthogonalLayoutWritebackPolicy
+                            .RoomRangeMetadataApplicationName),
+                    new TypedValue(
+                        (int)DxfCode.ExtendedDataAsciiString,
+                        OrthogonalLayoutWritebackPolicy
+                            .RoomRangeMetadataVersion),
+                    new TypedValue(
+                        (int)DxfCode.ExtendedDataReal,
+                        plan.SourceWest),
+                    new TypedValue(
+                        (int)DxfCode.ExtendedDataReal,
+                        plan.SourceEast),
+                    new TypedValue(
+                        (int)DxfCode.ExtendedDataReal,
+                        plan.SourceSouth),
+                    new TypedValue(
+                        (int)DxfCode.ExtendedDataReal,
+                        plan.SourceNorth),
+                    new TypedValue(
+                        (int)DxfCode.ExtendedDataReal,
+                        plan.Elevation)))
+                {
+                    entity.XData = roomRangeData;
+                }
+
+                modelSpace.AppendEntity(entity);
+                transaction.AddNewlyCreatedDBObject(entity, true);
+                writtenCount++;
+            }
+
+            return writtenCount;
+        }
+
+        private static int WriteFormalStartPoint(
+            Transaction transaction,
+            Database database,
+            ObjectId modelSpaceId,
+            ObjectId startPointLayerId,
+            LayoutDrawingPlan plan,
+            LayoutDrawingStartPoint startPoint)
+        {
+            if (startPoint == null)
+            {
+                return 0;
+            }
+
+            if (startPointLayerId.IsNull)
+            {
+                throw new InvalidOperationException(
+                    "起铺点图层尚未准备好，正式写回已停止。" );
+            }
+
+            BlockTableRecord modelSpace = (BlockTableRecord)transaction.GetObject(
+                modelSpaceId,
+                OpenMode.ForWrite);
+            IReadOnlyList<Entity> entities =
+                OrthogonalLayoutStartPointEntityFactory.Create(
+                    database,
+                    plan);
+            int writtenCount = 0;
+            foreach (Entity entity in entities)
+            {
+                entity.LayerId = startPointLayerId;
+                entity.Linetype = "ByLayer";
+                using (var roomRangeData = new ResultBuffer(
+                    new TypedValue(
+                        (int)DxfCode.ExtendedDataRegAppName,
+                        OrthogonalLayoutWritebackPolicy
+                            .RoomRangeMetadataApplicationName),
+                    new TypedValue(
+                        (int)DxfCode.ExtendedDataAsciiString,
+                        OrthogonalLayoutWritebackPolicy
+                            .RoomRangeMetadataVersion),
+                    new TypedValue(
+                        (int)DxfCode.ExtendedDataReal,
+                        plan.SourceWest),
+                    new TypedValue(
+                        (int)DxfCode.ExtendedDataReal,
+                        plan.SourceEast),
+                    new TypedValue(
+                        (int)DxfCode.ExtendedDataReal,
+                        plan.SourceSouth),
+                    new TypedValue(
+                        (int)DxfCode.ExtendedDataReal,
+                        plan.SourceNorth),
+                    new TypedValue(
+                        (int)DxfCode.ExtendedDataReal,
+                        plan.Elevation)))
+                {
+                    entity.XData = roomRangeData;
+                }
+
+                modelSpace.AppendEntity(entity);
+                transaction.AddNewlyCreatedDBObject(entity, true);
                 writtenCount++;
             }
 

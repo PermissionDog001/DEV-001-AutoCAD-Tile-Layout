@@ -2,7 +2,7 @@
 
 这是一个运行在 Autodesk AutoCAD 2021 中的 C# Managed .NET 插件。它根据房间边界生成地砖排版方案，先提供图面预览，只有用户明确确认后才把结果写入图纸。
 
-正式版本：`v0.2.0`
+当前版本：`v0.2.1`（本地发布候选包已准备，尚未创建远程 Release）
 
 适用环境：Windows x64、AutoCAD 2021、.NET Framework 4.8
 
@@ -16,6 +16,9 @@
 - **抹灰完成面**：默认 `0 mm`。输入正值后，程序先从原始边界向房间内部生成统一厚度的完成面，再根据完成面计算门洞、区域和排版。厚度不为 `0` 时，完成面轮廓也会写入专用图层。
 - **门洞**：在引导式流程中选择同一段外墙上的门洞两侧边缘点，程序自动处理门洞附近的排版关系。
 - **方案预览**：可切换方案、查看窄边砖和墙角对缝结果；修改设置、取消或失败时不会留下旧预览。
+- **自动尺寸标注**：第 1 页默认勾选“自动添加尺寸标注（建筑样式，默认勾选）”，大面选择房间内连续通长的代表性第一行和连续通宽的代表性第一列，链内每块砖逐块标注；房间内模式优先把通用尺寸链放在最接近房间中心且不贴边界的砖边，避免斜短线遮挡阳角、墙角和对缝关系。特殊切砖、异形砖和特殊位置只保留每个方向最长的必要尺寸并去重。房间凹边、凸边、转角台阶尺寸默认关闭，可单独开启。标注位置默认房间内，也可切换为房间外；数值四舍五入到整数且不带 `mm` 后缀。正式写回使用插件专用标注样式 `TILE_LAYOUT_ANNOTATION`，不受当前图纸 DIMSTYLE 影响。
+- **自动起铺点标志**：引导式 UI 会在远离门口的墙一侧首排/首列中，选择贴墙边砖为整砖或半砖的位置，把标志放在四块砖交界的灰缝中心；箭头分别指向房间内和实际铺贴大方向。正式标志写入 `TILE_LAYOUT_ORTHO_START` 图层，旧命令不受影响。
+- **图面颜色**：第 1 页可选择瓷砖分割线、砖尺寸标注、凹凸/特殊标注和抹灰边界颜色，提供 AutoCAD 常用 ACI 1～7 颜色，默认分别为 3、2、6、4。
 - **正式写回**：确认后写入专用图层，并保留 AutoCAD 一次 `UNDO` 撤销边界。
 
 ## 命令说明
@@ -31,12 +34,14 @@
 
 ## 安装和使用
 
-1. 从 [v0.2.0 GitHub Release](https://github.com/PermissionDog001/DEV-001-AutoCAD-Tile-Layout/releases/tag/v0.2.0) 下载 `TileLayout-0.2.0.zip`。
+1. 使用项目内 [v0.2.1 本地发布候选包](dist/TileLayout-0.2.1.zip)；远程 Release 尚未创建。
 2. 解压后，在 AutoCAD 2021 中执行 `NETLOAD`，选择 `TileLayout.AutoCAD.dll`。
 3. 进入模型空间，执行 `TILEUI`。
 4. 按窗口顺序选择房间边界、输入砖尺寸和灰缝，必要时输入抹灰厚度并选择门洞。
 5. 选择排版方案，查看临时预览和图面核对结果。
-6. 只有点击最后的确认写回按钮后，结果才会写入图纸。
+6. 在第 1 页确认自动标注、标注位置、房间台阶标注开关和颜色；默认标注位置为房间内。大面使用连续通长/通宽的第一行和第一列，链内每块砖逐块标注；特殊切砖/异形砖只补充每个方向最长且去重后的必要尺寸，预览确认后才会写入标注图层。
+7. 核对自动起铺点标志：标志应位于远离门口的墙一侧、贴墙整砖或半砖对应的四砖灰缝中心；一个箭头指向房间内，另一个箭头与实际铺贴大方向一致。
+8. 只有点击最后的确认写回按钮后，结果才会写入图纸。
 
 详细的操作步骤和常见提示见 [docs/user-guide.md](docs/user-guide.md)。
 
@@ -64,5 +69,27 @@
 - 原始房间边界只读使用，不会被修改、移动、炸开或删除；
 - 预览、取消、失败和未确认状态不写入正式对象；
 - 正式结果写入专用图层，抹灰完成面厚度不为 `0` 时一并写入完成面轮廓；
+- 自动尺寸标注写入独立图层 `TILE_LAYOUT_ORTHO_DIM`；取消勾选或未确认时不会创建该层或写入标注对象；
+- 自动起铺点标志写入独立图层 `TILE_LAYOUT_ORTHO_START`；没有合适的整砖/半砖墙边位置时不生成标志；预览、取消或未确认时不会写入正式对象；
+- 分割线、尺寸标注和抹灰边界按 UI 选择的 ACI 实体颜色写入；原始墙线不改色；
 - 插件不自动保存或覆盖 DWG；
 - 如需撤销本次写入，可执行一次 AutoCAD `U` 或 `UNDO`。
+
+## 构建、测试与加载
+
+在项目根目录执行：
+
+```powershell
+dotnet restore TileLayout.sln --locked-mode
+dotnet msbuild src\TileLayout.Core\TileLayout.Core.csproj /t:Build /p:Configuration=Release /v:minimal
+dotnet msbuild tests\TileLayout.Core.Tests\TileLayout.Core.Tests.csproj /t:Build /p:Configuration=Release /v:minimal
+powershell -ExecutionPolicy Bypass -File .\tools\Invoke-CoreReflectionTests.ps1 -Configuration Release
+```
+
+AutoCAD 插件需要本机 `config\AutoCAD.Local.props` 提供 AutoCAD 2021 Managed 程序集位置；该文件不进入 Git。AutoCAD 正在运行并锁定标准输出目录时，使用隔离目录构建：
+
+```powershell
+dotnet msbuild src\TileLayout.AutoCAD\TileLayout.AutoCAD.csproj /t:Build /p:Configuration=Release /p:OutputPath=..\..\build\plugin\Release-verify\ /p:IntermediateOutputPath=..\..\build\obj\TileLayout.AutoCAD\Release-verify\ /v:minimal
+```
+
+在 AutoCAD 2021 中执行 `NETLOAD` 加载 `TileLayout.AutoCAD.dll`，然后执行 `TILEUI`。标准 `dotnet test` 在当前 .NET Framework 测试宿主上可能无法稳定发现测试，发布检查使用项目内反射运行器并记录实际通过数。

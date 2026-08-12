@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using TileLayout.Core.Models;
 
@@ -48,7 +49,8 @@ namespace TileLayout.Core
                     parameters.TileWidth,
                     parameters.TileHeight,
                     parameters.DoorOpening,
-                    parameters.GroutWidthMm);
+                    parameters.GroutWidthMm,
+                    GetRecommendedMinimumCutRatio(parameters.Policy));
             EngineeringRectangularLayoutResult rectangular =
                 EngineeringRectangularLayoutCalculator.Calculate(
                     parameters.ControlRegion,
@@ -202,17 +204,20 @@ namespace TileLayout.Core
             return HasDoorControlledPatternOpportunity(
                     room.Width,
                     parameters.TileWidth,
-                    parameters.GridTileWidth)
+                    parameters.GridTileWidth,
+                    GetRecommendedMinimumCutRatio(parameters.Policy))
                 || HasDoorControlledPatternOpportunity(
                     room.Height,
                     parameters.TileHeight,
-                    parameters.GridTileHeight);
+                    parameters.GridTileHeight,
+                    GetRecommendedMinimumCutRatio(parameters.Policy));
         }
 
         private static bool HasDoorControlledPatternOpportunity(
             double length,
             double tileSize,
-            double gridTileSize)
+            double gridTileSize,
+            double minimumCutRatio)
         {
             double grout = gridTileSize - tileSize;
             double remainder = length % gridTileSize;
@@ -225,7 +230,7 @@ namespace TileLayout.Core
             }
 
             double minimumCut = tileSize
-                * EngineeringLayoutRules.DefaultMinimumCutRatio;
+                * minimumCutRatio;
             double oppositeWidth;
             double selectedWidth;
             return TryFindBoundaryPattern(
@@ -422,7 +427,8 @@ namespace TileLayout.Core
                     parameters.TileWidth,
                     xCuts,
                     phaseSources,
-                    parameters.GridTileWidth));
+                    parameters.GridTileWidth,
+                    GetRecommendedMinimumCutRatio(parameters.Policy)));
                 plans.Add(BuildWholeRoomPhasePlan(
                     TileLayoutAxis.Y,
                     room.South,
@@ -430,7 +436,8 @@ namespace TileLayout.Core
                     parameters.TileHeight,
                     yCuts,
                     phaseSources,
-                    parameters.GridTileHeight));
+                    parameters.GridTileHeight,
+                    GetRecommendedMinimumCutRatio(parameters.Policy)));
                 reason = phase.Reason;
             }
 
@@ -454,13 +461,44 @@ namespace TileLayout.Core
                     room,
                     xCuts,
                     yCuts);
-            List<TileFootprint> tiles = OrthogonalFootprintBuilder.Build(
+            LayoutCandidateStructure structure = BuildWholeRoomStructure(
                 room,
                 xCuts,
-                yCuts,
-                parameters.TileWidth,
-                parameters.TileHeight,
-                parameters.GroutWidthMm);
+                yCuts);
+            List<TileFootprint> tiles;
+            try
+            {
+                tiles = OrthogonalFootprintBuilder.Build(
+                    room,
+                    xCuts,
+                    yCuts,
+                    parameters.TileWidth,
+                    parameters.TileHeight,
+                    parameters.GroutWidthMm);
+            }
+            catch (GroutAllowanceException error)
+            {
+                diagnostics.Add(
+                    new CandidateDiagnostic(
+                        CandidateDiagnosticCode.GroutTileBodyUnavailable,
+                        CandidateDiagnosticSeverity.Rejection,
+                        "The grid phase was rejected because at least one cut tile cannot retain a positive physical tile body after the fixed grout allowance is applied. "
+                            + error.Message));
+                return new LayoutCandidate(
+                    id,
+                    false,
+                    false,
+                    reason,
+                    plans,
+                    lines,
+                    new List<TileFootprint>(),
+                    diagnostics,
+                    EmptyMetrics(),
+                    structure,
+                    new List<TileFootprintAssessment>(),
+                    new List<WallCornerAssessment>(),
+                    phaseSources);
+            }
             IList<TileFootprintAssessment> tileAssessments;
             IList<WallCornerAssessment> wallCornerAssessments;
             LayoutCandidateMetrics metrics = BuildMetrics(
@@ -496,26 +534,6 @@ namespace TileLayout.Core
                 wallCornerAssessments,
                 true,
                 diagnostics);
-            var bounds = new AxisAlignedRectangle(
-                room.West,
-                room.East,
-                room.South,
-                room.North,
-                room.Elevation);
-            var structure = new LayoutCandidateStructure(
-                OrthogonalCandidateKind.WholeRoomSinglePhase,
-                new List<LayoutRegionPhase>
-                {
-                    new LayoutRegionPhase(
-                        "whole-room",
-                        LayoutRegionRole.WholeRoom,
-                        bounds,
-                        xCuts,
-                        yCuts,
-                        false,
-                        false)
-                },
-                new List<RegionConnectionPlan>());
             return new LayoutCandidate(
                 id,
                 false,
@@ -530,6 +548,33 @@ namespace TileLayout.Core
                 tileAssessments,
                 wallCornerAssessments,
                 phaseSources);
+        }
+
+        private static LayoutCandidateStructure BuildWholeRoomStructure(
+            AxisAlignedOrthogonalPolygon room,
+            IList<double> xCuts,
+            IList<double> yCuts)
+        {
+            var bounds = new AxisAlignedRectangle(
+                room.West,
+                room.East,
+                room.South,
+                room.North,
+                room.Elevation);
+            return new LayoutCandidateStructure(
+                OrthogonalCandidateKind.WholeRoomSinglePhase,
+                new List<LayoutRegionPhase>
+                {
+                    new LayoutRegionPhase(
+                        "whole-room",
+                        LayoutRegionRole.WholeRoom,
+                        bounds,
+                        xCuts,
+                        yCuts,
+                        false,
+                        false)
+                },
+                new List<RegionConnectionPlan>());
         }
 
         private static void AddDoorControlledPatternClippingDiagnostics(
@@ -647,7 +692,7 @@ namespace TileLayout.Core
                     : parameters.TileHeight;
                 double half = tileSize * EngineeringLayoutRules.HalfTileRatio;
                 double recommended = tileSize
-                    * EngineeringLayoutRules.DefaultMinimumCutRatio;
+                    * GetRecommendedMinimumCutRatio(parameters.Policy);
                 List<BoundaryCutMeasurement> measurements = tileAssessments
                     .SelectMany(assessment => assessment.Measurements)
                     .Where(measurement => measurement.Axis == axis)
@@ -1348,7 +1393,8 @@ namespace TileLayout.Core
                     gridTileSize,
                     metrics,
                     source.ControlSide,
-                    halfSide);
+                    halfSide,
+                    source.RecommendedMinimumCutRatio);
             return build.Plan != null && build.Plan.UsesRedistribution
                 ? build.Plan
                 : null;
@@ -1528,7 +1574,10 @@ namespace TileLayout.Core
         {
             if (source.UsesRedistribution
                 || source.NaturalRemainder <= GeometryTolerance.Coordinate
-                || source.FullTileCount < 1)
+                || source.FullTileCount < 1
+                || source.NaturalRemainder
+                    + GeometryTolerance.Coordinate
+                    >= source.TileSize * EngineeringLayoutRules.HalfTileRatio)
             {
                 return null;
             }
@@ -1582,7 +1631,8 @@ namespace TileLayout.Core
                 source.FullTileCount - 1,
                 true,
                 widths,
-                source.GridTileSize);
+                source.GridTileSize,
+                source.RecommendedMinimumCutRatio);
         }
 
         private static void AddMainSecondaryCandidates(
@@ -1600,7 +1650,7 @@ namespace TileLayout.Core
                 ? parameters.TileWidth
                 : parameters.TileHeight;
             double minimumCut = tileSize
-                * EngineeringLayoutRules.DefaultMinimumCutRatio;
+                * GetRecommendedMinimumCutRatio(parameters.Policy);
             double adjacentWidth = GetBoundaryWidth(
                 parallelPlan,
                 connection.ProtrusionSide);
@@ -1613,7 +1663,7 @@ namespace TileLayout.Core
                     <= tileSize + GeometryTolerance.Coordinate;
 
             target.Add(
-                BuildMainSecondaryCandidate(
+                BuildMainSecondaryCandidateSafely(
                     room,
                     parameters,
                     source,
@@ -1628,7 +1678,7 @@ namespace TileLayout.Core
             if (canAbsorb)
             {
                 target.Add(
-                    BuildMainSecondaryCandidate(
+                    BuildMainSecondaryCandidateSafely(
                         room,
                         parameters,
                         source,
@@ -1656,7 +1706,7 @@ namespace TileLayout.Core
                         adjacentWidth))
                 {
                     target.Add(
-                        BuildMainSecondaryCandidate(
+                        BuildMainSecondaryCandidateSafely(
                             room,
                             parameters,
                             source,
@@ -1668,6 +1718,67 @@ namespace TileLayout.Core
                             true,
                             true));
                 }
+            }
+        }
+
+        private static LayoutCandidate BuildMainSecondaryCandidateSafely(
+            AxisAlignedOrthogonalPolygon room,
+            EngineeringOrthogonalLayoutParameters parameters,
+            LayoutCandidate source,
+            BoundaryBandPlan mainParallelPlan,
+            BoundaryBandPlan mainPerpendicularPlan,
+            ConnectionInfo connection,
+            ProtrusionBandTreatment treatment,
+            bool retainUnresolvedMinimum,
+            bool absorptionWasAvailable,
+            bool mirroredForAbsorption)
+        {
+            try
+            {
+                return BuildMainSecondaryCandidate(
+                    room,
+                    parameters,
+                    source,
+                    mainParallelPlan,
+                    mainPerpendicularPlan,
+                    connection,
+                    treatment,
+                    retainUnresolvedMinimum,
+                    absorptionWasAvailable,
+                    mirroredForAbsorption);
+            }
+            catch (GroutAllowanceException error)
+            {
+                var diagnostics = new List<CandidateDiagnostic>
+                {
+                    new CandidateDiagnostic(
+                        CandidateDiagnosticCode.MainSecondaryLayoutGenerated,
+                        CandidateDiagnosticSeverity.Information,
+                        "The candidate combines the explicit main and secondary regions."),
+                    new CandidateDiagnostic(
+                        CandidateDiagnosticCode.GroutTileBodyUnavailable,
+                        CandidateDiagnosticSeverity.Rejection,
+                        "The region candidate was rejected because at least one cut tile cannot retain a positive physical tile body after the fixed grout allowance is applied. "
+                            + error.Message)
+                };
+                return new LayoutCandidate(
+                    GetRegionalId(source, treatment, mirroredForAbsorption),
+                    false,
+                    false,
+                    "The explicit main and secondary regions cannot produce tile bodies with the fixed grout allowance.",
+                    new List<BoundaryBandPlan>
+                    {
+                        mainParallelPlan,
+                        mainPerpendicularPlan
+                    },
+                    new List<LineSegment3D>(),
+                    new List<TileFootprint>(),
+                    diagnostics,
+                    EmptyMetrics(),
+                    new LayoutCandidateStructure(
+                        OrthogonalCandidateKind.MainSecondary,
+                        new List<LayoutRegionPhase>(),
+                        new List<RegionConnectionPlan>()));
             }
         }
 
@@ -1709,7 +1820,8 @@ namespace TileLayout.Core
                         perpendicularGridTileSize,
                         metrics,
                         connection.SecondaryConnectionSide,
-                        connection.SecondaryFarSide);
+                        connection.SecondaryFarSide,
+                        GetRecommendedMinimumCutRatio(parameters.Policy));
 
             var diagnostics = new List<CandidateDiagnostic>();
             diagnostics.Add(
@@ -1973,6 +2085,7 @@ namespace TileLayout.Core
             double minimumBoundaryWidth = double.PositiveInfinity;
             double minimumBelowRecommended = double.PositiveInfinity;
             double minimumBelowAbsolute = double.PositiveInfinity;
+            double minimumAbsoluteThreshold = double.PositiveInfinity;
             var assessments = new List<TileFootprintAssessment>();
             for (int tileIndex = 0; tileIndex < tiles.Count; tileIndex++)
             {
@@ -2050,6 +2163,15 @@ namespace TileLayout.Core
                 }
 
                 ProjectCutStatus status = AggregateStatus(measurements);
+                foreach (BoundaryCutMeasurement measurement in measurements)
+                {
+                    if (measurement.ProjectAbsoluteMinimum.HasValue)
+                    {
+                        minimumAbsoluteThreshold = Math.Min(
+                            minimumAbsoluteThreshold,
+                            measurement.ProjectAbsoluteMinimum.Value);
+                    }
+                }
                 if (status == ProjectCutStatus.RequiresProjectPolicy
                     || status == ProjectCutStatus.RequiresUserReview
                     || status == ProjectCutStatus.BelowProjectAbsoluteMinimum)
@@ -2151,7 +2273,9 @@ namespace TileLayout.Core
                         null,
                         null,
                         minimumBelowAbsolute,
-                        parameters.Policy.ProjectAbsoluteMinimumCut));
+                        double.IsPositiveInfinity(minimumAbsoluteThreshold)
+                            ? (double?)null
+                            : minimumAbsoluteThreshold));
             }
             else if (belowMinimumCount > 0
                 && (parameters.Policy == null
@@ -2161,7 +2285,10 @@ namespace TileLayout.Core
                     new CandidateDiagnostic(
                         CandidateDiagnosticCode.BelowDefaultMinimumRequiresPolicy,
                         CandidateDiagnosticSeverity.Warning,
-                        "At least one independent boundary cut is below 0.42T; the project absolute minimum is required before it can be classified.",
+                        "At least one independent boundary cut is below the configured recommended "
+                            + GetRecommendedMinimumCutRatio(parameters.Policy)
+                                .ToString("0.###", CultureInfo.InvariantCulture)
+                            + "T; the project absolute minimum is required before it can be classified.",
                         null,
                         null,
                         minimumBelowRecommended));
@@ -2172,11 +2299,16 @@ namespace TileLayout.Core
                     new CandidateDiagnostic(
                         CandidateDiagnosticCode.BelowRecommendedMinimumRequiresReview,
                         CandidateDiagnosticSeverity.Warning,
-                        "Every boundary cut meets the project absolute minimum, but at least one is below the recommended 0.42T and requires review.",
+                        "Every boundary cut meets the project absolute minimum, but at least one is below the configured recommended "
+                            + GetRecommendedMinimumCutRatio(parameters.Policy)
+                                .ToString("0.###", CultureInfo.InvariantCulture)
+                            + "T and requires review.",
                         null,
                         null,
                         minimumBelowRecommended,
-                        parameters.Policy.ProjectAbsoluteMinimumCut));
+                        double.IsPositiveInfinity(minimumAbsoluteThreshold)
+                            ? (double?)null
+                            : minimumAbsoluteThreshold));
             }
 
             return new LayoutCandidateMetrics(
@@ -2219,10 +2351,8 @@ namespace TileLayout.Core
             LayoutPolicyProfile policy)
         {
             double recommended = tileSize
-                * EngineeringLayoutRules.DefaultMinimumCutRatio;
-            double? absolute = policy == null
-                ? null
-                : policy.ProjectAbsoluteMinimumCut;
+                * GetRecommendedMinimumCutRatio(policy);
+            double? absolute = GetProjectAbsoluteMinimumCut(policy, tileSize);
             ProjectCutStatus status;
             if (actual + GeometryTolerance.Coordinate >= recommended)
             {
@@ -2247,6 +2377,28 @@ namespace TileLayout.Core
                 recommended,
                 absolute,
                 status);
+        }
+
+        private static double GetRecommendedMinimumCutRatio(
+            LayoutPolicyProfile policy)
+        {
+            return policy == null
+                ? EngineeringLayoutRules.DefaultMinimumCutRatio
+                : policy.DefaultMinimumCutRatio;
+        }
+
+        private static double? GetProjectAbsoluteMinimumCut(
+            LayoutPolicyProfile policy,
+            double tileSize)
+        {
+            if (policy == null)
+            {
+                return null;
+            }
+
+            return policy.ProjectAbsoluteMinimumRatio.HasValue
+                ? tileSize * policy.ProjectAbsoluteMinimumRatio.Value
+                : policy.ProjectAbsoluteMinimumCut;
         }
 
         private static EntranceVisibility EvaluateEntranceVisibility(
@@ -2612,7 +2764,8 @@ namespace TileLayout.Core
                 axis,
                 tileSize,
                 gridTileSize,
-                doorOpening);
+                doorOpening,
+                GetRecommendedMinimumCutRatio(policy));
             double minimum = axis == TileLayoutAxis.X
                 ? room.West
                 : room.South;
@@ -2660,7 +2813,7 @@ namespace TileLayout.Core
             }
 
             double recommended = tileSize
-                * EngineeringLayoutRules.DefaultMinimumCutRatio;
+                * GetRecommendedMinimumCutRatio(policy);
             foreach (double residue in residues)
             {
                 AddPhaseOffset(offsets, residue - recommended, gridTileSize, 3,
@@ -2675,7 +2828,9 @@ namespace TileLayout.Core
                     "a recommended-minimum threshold contact");
                 if (policy != null && policy.HasProjectAbsoluteMinimum)
                 {
-                    double absolute = policy.ProjectAbsoluteMinimumCut.Value;
+                    double absolute = GetProjectAbsoluteMinimumCut(
+                        policy,
+                        tileSize).Value;
                     AddPhaseOffset(offsets, residue - absolute, gridTileSize, 4,
                         axis,
                         GridPhaseSourceKind.ProjectAbsoluteMinimumContact,
@@ -2758,7 +2913,8 @@ namespace TileLayout.Core
             TileLayoutAxis axis,
             double tileSize,
             double gridTileSize,
-            DoorOpening doorOpening)
+            DoorOpening doorOpening,
+            double minimumCutRatio)
         {
             double length = axis == TileLayoutAxis.X
                 ? room.Width
@@ -2770,7 +2926,7 @@ namespace TileLayout.Core
                 ? 0.0
                 : remainder - grout;
             double minimumCut = tileSize
-                * EngineeringLayoutRules.DefaultMinimumCutRatio;
+                * minimumCutRatio;
             if (remainder <= GeometryTolerance.Coordinate
                 || gridTileSize - remainder <= GeometryTolerance.Coordinate)
             {
@@ -2788,9 +2944,9 @@ namespace TileLayout.Core
             double boundaryWidth;
             double oppositeWidth;
             bool halfPattern = TryFindBoundaryPattern(
-                physicalLength,
-                tileSize,
-                minimumCut,
+                    physicalLength,
+                    tileSize,
+                    minimumCut,
                 half,
                 out oppositeWidth,
                 out boundaryWidth);
@@ -2846,9 +3002,9 @@ namespace TileLayout.Core
             // creating a hidden narrow strip.
             double fullTile = tileSize;
             bool fullPattern = TryFindBoundaryPattern(
-                physicalLength,
-                tileSize,
-                minimumCut,
+                    physicalLength,
+                    tileSize,
+                    minimumCut,
                 fullTile,
                 out oppositeWidth,
                 out boundaryWidth);
@@ -3521,7 +3677,9 @@ namespace TileLayout.Core
             double tileSize,
             IList<double> cuts,
             IList<GridPhaseSource> phaseSources,
-            double gridTileSize = double.NaN)
+            double gridTileSize = double.NaN,
+            double recommendedMinimumCutRatio =
+                EngineeringLayoutRules.DefaultMinimumCutRatio)
         {
             double resolvedGridTileSize = double.IsNaN(gridTileSize)
                 ? tileSize
@@ -3602,7 +3760,8 @@ namespace TileLayout.Core
                 interiorFullTileCount,
                 false,
                 segmentWidths,
-                resolvedGridTileSize);
+                resolvedGridTileSize,
+                recommendedMinimumCutRatio);
         }
 
         private static BoundaryBandKind GetPhaseBoundaryKind(
@@ -3666,7 +3825,8 @@ namespace TileLayout.Core
                 plan.InteriorFullTileCount,
                 plan.UsesRedistribution,
                 widths,
-                plan.GridTileSize);
+                plan.GridTileSize,
+                plan.RecommendedMinimumCutRatio);
         }
 
         private static double GetBoundaryWidth(

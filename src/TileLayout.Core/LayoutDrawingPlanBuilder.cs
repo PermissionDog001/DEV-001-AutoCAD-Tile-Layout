@@ -12,6 +12,47 @@ namespace TileLayout.Core
             EngineeringOrthogonalDecisionResult result,
             string candidateId)
         {
+            return Build(result, candidateId, false);
+        }
+
+        public static LayoutDrawingPlan Build(
+            EngineeringOrthogonalDecisionResult result,
+            string candidateId,
+            bool includeDimensions)
+        {
+            return Build(
+                result,
+                candidateId,
+                includeDimensions,
+                LayoutDrawingDimensionPlacement.OutsideRoom,
+                LayoutDrawingColorSettings.Default,
+                true);
+        }
+
+        public static LayoutDrawingPlan Build(
+            EngineeringOrthogonalDecisionResult result,
+            string candidateId,
+            bool includeDimensions,
+            LayoutDrawingDimensionPlacement dimensionPlacement,
+            LayoutDrawingColorSettings colorSettings)
+        {
+            return Build(
+                result,
+                candidateId,
+                includeDimensions,
+                dimensionPlacement,
+                colorSettings,
+                true);
+        }
+
+        public static LayoutDrawingPlan Build(
+            EngineeringOrthogonalDecisionResult result,
+            string candidateId,
+            bool includeDimensions,
+            LayoutDrawingDimensionPlacement dimensionPlacement,
+            LayoutDrawingColorSettings colorSettings,
+            bool includeRoomFeatureDimensions)
+        {
             if (result == null)
             {
                 throw new ArgumentNullException(nameof(result));
@@ -171,6 +212,26 @@ namespace TileLayout.Core
                     corner.HorizontalAdjacentSpanA,
                     corner.HorizontalAdjacentSpanB));
             }
+            var dimensions = includeDimensions
+                ? LayoutDrawingDimensionBuilder.Build(
+                    room,
+                    candidate.Tiles,
+                    result.RawResult.Parameters.TileWidth,
+                    result.RawResult.Parameters.TileHeight,
+                    dimensionPlacement,
+                    includeRoomFeatureDimensions)
+                    .ToList()
+                : new List<LayoutDrawingDimension>();
+            LayoutDrawingStartPoint startPoint;
+            string startPointUnavailableReason;
+            LayoutDrawingStartPointBuilder.TryBuild(
+                room,
+                candidate,
+                result.RawResult.Parameters.DoorOpening,
+                result.RawResult.Parameters.TileWidth,
+                result.RawResult.Parameters.TileHeight,
+                out startPoint,
+                out startPointUnavailableReason);
             return new LayoutDrawingPlan(
                 candidate.Id,
                 evaluated.State,
@@ -192,7 +253,13 @@ namespace TileLayout.Core
                 sourceRoom.South,
                 sourceRoom.North,
                 result.RawResult.Parameters.GroutWidthMm,
-                result.RawResult.Parameters.PlasterThicknessMm);
+                result.RawResult.Parameters.PlasterThicknessMm,
+                dimensions,
+                dimensionPlacement,
+                colorSettings,
+                includeRoomFeatureDimensions,
+                startPoint,
+                startPointUnavailableReason);
         }
 
         private static List<LayoutDrawingLine> BuildDivisionLines(

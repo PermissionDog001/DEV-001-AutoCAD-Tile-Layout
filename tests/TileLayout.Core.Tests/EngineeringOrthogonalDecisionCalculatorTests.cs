@@ -220,6 +220,114 @@ namespace TileLayout.Core.Tests
         }
 
         [TestMethod]
+        public void PolicyKeepsLegacyDefaultAndAcceptsConfiguredRange()
+        {
+            var defaultPolicy = new LayoutPolicyProfile("P-1");
+            var lowerPolicy = new LayoutPolicyProfile(
+                "P-1",
+                null,
+                ProjectAbsoluteMinimumMode.NotDecided,
+                0.01);
+            var upperPolicy = new LayoutPolicyProfile(
+                "P-1",
+                null,
+                ProjectAbsoluteMinimumMode.NotDecided,
+                0.75);
+
+            Assert.AreEqual(0.42, defaultPolicy.DefaultMinimumCutRatio,
+                GeometryTolerance.Coordinate);
+            Assert.AreEqual(0.01, lowerPolicy.DefaultMinimumCutRatio,
+                GeometryTolerance.Coordinate);
+            Assert.AreEqual(0.75, upperPolicy.DefaultMinimumCutRatio,
+                GeometryTolerance.Coordinate);
+            AssertThrows<ArgumentOutOfRangeException>(
+                () => new LayoutPolicyProfile(
+                    "P-1",
+                    null,
+                    ProjectAbsoluteMinimumMode.NotDecided,
+                    0.0));
+            AssertThrows<ArgumentOutOfRangeException>(
+                () => new LayoutPolicyProfile(
+                    "P-1",
+                    null,
+                    ProjectAbsoluteMinimumMode.NotDecided,
+                0.750001));
+        }
+
+        [TestMethod]
+        public void PolicySupportsProjectAbsoluteMinimumRatioPerTileAxis()
+        {
+            var policy = new LayoutPolicyProfile(
+                "P-1",
+                null,
+                ProjectAbsoluteMinimumMode.NumericRatio,
+                0.5,
+                0.42);
+
+            Assert.IsTrue(policy.HasProjectAbsoluteMinimum);
+            Assert.AreEqual(
+                ProjectAbsoluteMinimumMode.NumericRatio,
+                policy.ProjectAbsoluteMinimumMode);
+            Assert.IsNull(policy.ProjectAbsoluteMinimumCut);
+            Assert.AreEqual(
+                0.42,
+                policy.ProjectAbsoluteMinimumRatio.Value,
+                GeometryTolerance.Coordinate);
+
+            EngineeringOrthogonalDecisionResult result = CalculateL04(
+                1690,
+                1890,
+                policy,
+                null);
+            Assert.IsNotNull(result.RawResult);
+            Assert.IsTrue(result.Candidates
+                .Where(candidate => candidate.HasRawCandidate)
+                .SelectMany(candidate => candidate.Candidate.TileAssessments)
+                .SelectMany(assessment => assessment.Measurements)
+                .Any(measurement => measurement.ProjectAbsoluteMinimum.HasValue
+                    && Math.Abs(
+                        measurement.ProjectAbsoluteMinimum.Value - 252.0)
+                        <= GeometryTolerance.Coordinate));
+        }
+
+        [TestMethod]
+        public void GroutFailureInOneComplexPhaseDoesNotBecomeInputUntrusted()
+        {
+            AxisAlignedOrthogonalPolygon room =
+                ComplexOrthogonalBoundaryFixture.CreateRoom();
+            var decision = new RoomDecision(
+                ComplexOrthogonalBoundaryFixture.CreateControlRegion(),
+                ComplexOrthogonalBoundaryFixture.CreateDeterministicWestDoor(),
+                RoomLayoutIntent.WholeRoomSinglePhase);
+            EngineeringOrthogonalDecisionResult result =
+                EngineeringOrthogonalDecisionCalculator.Calculate(
+                    new EngineeringOrthogonalDecisionRequest(
+                        room,
+                        600.0,
+                        600.0,
+                        new LayoutPolicyProfile("P-1"),
+                        decision,
+                        null,
+                        LayoutDecisionMode.Research,
+                        false,
+                        1.5,
+                        0.0,
+                        room));
+
+            Assert.IsNotNull(result.RawResult);
+            Assert.IsFalse(result.Candidates.Any(candidate =>
+                candidate.State == LayoutCandidateState.InputUntrusted));
+            Assert.IsTrue(result.Candidates.Any(candidate =>
+                candidate.State == LayoutCandidateState.AutomaticUsable
+                || candidate.State == LayoutCandidateState.RequiresUserDecision));
+            Assert.IsTrue(result.Candidates.Any(candidate =>
+                candidate.HasRawCandidate
+                && candidate.Candidate.Diagnostics.Any(diagnostic =>
+                    diagnostic.Code ==
+                        CandidateDiagnosticCode.GroutTileBodyUnavailable)));
+        }
+
+        [TestMethod]
         public void InvalidFinishedFaceStopsCandidateCalculation()
         {
             AxisAlignedOrthogonalPolygon source = Room(
@@ -255,6 +363,19 @@ namespace TileLayout.Core.Tests
         private static void AssertProjectPolicyRequirement(EngineeringOrthogonalDecisionResult result)
         {
             Assert.IsTrue(result.Requirements.Any(requirement => requirement.Code == DecisionRequirementCode.ProjectSecondAbsoluteMinimum && requirement.Level == DecisionRequirementLevel.ProjectPolicy));
+        }
+
+        private static void AssertThrows<TException>(Action action)
+            where TException : Exception
+        {
+            try
+            {
+                action();
+                Assert.Fail("Expected " + typeof(TException).Name + ".");
+            }
+            catch (TException)
+            {
+            }
         }
 
         private static EngineeringOrthogonalDecisionResult CalculateL04(double upperWidth, double lowerWidth, LayoutPolicyProfile policy, CandidateDecision decision)

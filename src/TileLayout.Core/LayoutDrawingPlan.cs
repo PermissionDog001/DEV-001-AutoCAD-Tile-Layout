@@ -271,7 +271,14 @@ namespace TileLayout.Core
             double sourceSouth = double.NaN,
             double sourceNorth = double.NaN,
             double groutWidthMm = 0.0,
-            double plasterThicknessMm = 0.0)
+            double plasterThicknessMm = 0.0,
+            IList<LayoutDrawingDimension> dimensions = null,
+            LayoutDrawingDimensionPlacement dimensionPlacement =
+                LayoutDrawingDimensionPlacement.OutsideRoom,
+            LayoutDrawingColorSettings colorSettings = null,
+            bool includeRoomFeatureDimensions = true,
+            LayoutDrawingStartPoint startPoint = null,
+            string startPointUnavailableReason = null)
         {
             CandidateId = candidateId;
             CandidateState = candidateState;
@@ -286,6 +293,11 @@ namespace TileLayout.Core
             GroutWidthMm = groutWidthMm;
             PlasterThicknessMm = plasterThicknessMm;
             Elevation = elevation;
+            DimensionPlacement = dimensionPlacement;
+            ColorSettings = colorSettings ?? LayoutDrawingColorSettings.Default;
+            IncludeRoomFeatureDimensions = includeRoomFeatureDimensions;
+            StartPoint = startPoint;
+            StartPointUnavailableReason = startPointUnavailableReason ?? string.Empty;
             RoomOutline = new ReadOnlyCollection<Point3D>(roomOutline);
             DivisionLines = new ReadOnlyCollection<LayoutDrawingLine>(divisionLines);
             Tiles = new ReadOnlyCollection<LayoutDrawingTile>(tiles);
@@ -297,6 +309,8 @@ namespace TileLayout.Core
                 neutralConnections);
             WallCorners = new ReadOnlyCollection<LayoutDrawingWallCorner>(
                 wallCorners);
+            Dimensions = new ReadOnlyCollection<LayoutDrawingDimension>(
+                dimensions ?? new List<LayoutDrawingDimension>());
         }
 
         public string CandidateId { get; }
@@ -329,6 +343,16 @@ namespace TileLayout.Core
 
         public double Elevation { get; }
 
+        public LayoutDrawingDimensionPlacement DimensionPlacement { get; }
+
+        public LayoutDrawingColorSettings ColorSettings { get; }
+
+        public bool IncludeRoomFeatureDimensions { get; }
+
+        public LayoutDrawingStartPoint StartPoint { get; }
+
+        public string StartPointUnavailableReason { get; }
+
         public double Width => East - West;
 
         public double Height => North - South;
@@ -348,5 +372,7 @@ namespace TileLayout.Core
         public IReadOnlyList<LayoutDrawingLine> NeutralConnections { get; }
 
         public IReadOnlyList<LayoutDrawingWallCorner> WallCorners { get; }
+
+        public IReadOnlyList<LayoutDrawingDimension> Dimensions { get; }
     }
 }
