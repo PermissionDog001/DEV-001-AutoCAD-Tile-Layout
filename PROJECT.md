@@ -6,7 +6,7 @@
 - 项目名称：AutoCAD瓷砖自动排版插件
 - 创建日期：2026-07-19
 - 项目目录：`E:\Workspace\Development\DEV-001-AutoCAD瓷砖自动排版插件`
-- 当前状态：V0.2.1 功能已完成，用户已确认 AutoCAD 2021 实机验证达到预期效果；面向用户的更新说明已清理，当前正在执行 GitHub 推送和 Release 发布。历史阶段记录继续保留，面向用户的更新说明与内部开发记录分开维护。
+- 当前状态：V0.2.1 功能已完成，用户已确认 AutoCAD 2021 实机验证达到预期效果；面向用户的更新说明已清理，版本已推送至 GitHub `origin/main`，并已创建 `v0.2.1` 标签和正式 Release。历史阶段记录继续保留，面向用户的更新说明与内部开发记录分开维护。
 - 路线图与测试预算：`docs/development-roadmap.md`
 - DOR9-A 规则草案：`docs/dor9-grout-polyline-plaster.md`
 - 已实现阶段总账：`docs/implementation-ledger.md`
@@ -894,11 +894,11 @@ G3 算法、推荐下限等号组合资格门、候选保留/分组和同源零�
 - 正式标志使用 `TILE_LAYOUT_ORTHO_START` 图层、ACI 3，由圆、十字、两个三线开放箭头和“起铺点”文字组成；没有合适的整砖/半砖位置时不生成标志。旧四命令行为不变。
 - 新增回归覆盖远墙、门洞对侧、四砖灰缝中心、非零灰缝和实际沿墙方向；Debug/Release Core 手动反射回归均为 `346/346`，Core、测试项目和 AutoCAD 适配项目构建通过。
 - 用户已确认 2026-08-12 AutoCAD 2021 实机验证达到预期效果。本记录只记录用户确认的范围，不补写未提供的 DWG 文件名、实体数量或哈希。
-- 规则明细见 [docs/start-point-annotation-rules.md](docs/start-point-annotation-rules.md)。本阶段完成 V0.2.1 功能收口，进入本地发布包、校验清单和 Git 基线整理。
+- 规则明细见 [docs/start-point-annotation-rules.md](docs/start-point-annotation-rules.md)。本阶段完成 V0.2.1 功能收口，并完成本地发布包、校验清单和 Git 基线整理。
 
-## 73. V0.2.1 本地发布准备（2026-08-12）
+## 73. V0.2.1 发布完成（2026-08-12）
 
 - 已将程序集版本固定为 `0.2.1.0`，生成 `dist/TileLayout-0.2.1/`、压缩包和 SHA-256 校验清单；包只包含两个运行程序集和中文使用说明，不包含 Autodesk Managed DLL、PDB、测试组件、DWG、缓存或日志。
 - 发布说明见 [docs/release-v0.2.1.md](docs/release-v0.2.1.md)，本地交付目录说明见 [dist/README.md](dist/README.md)。旧 `v0.1.0`、`v0.2.0` 包保持不变。
 - 已补充 `tools/Invoke-CoreReflectionTests.ps1`，将当前可复现的 Debug/Release Core 反射回归命令固化为项目工具；标准 VSTest 宿主限制继续如实记录，不冒充标准 `dotnet test` 通过。
-- 本次用户授权范围包含文档更新、Git 基线提交、推送 `origin/main`、创建 `v0.2.1` 标签和 GitHub Release；当前文档和本地包已准备，远程操作尚未完成。未创建 PR。
+- 本次用户授权范围已完成：文档更新、Git 基线提交、推送 `origin/main`、创建 `v0.2.1` 标签和 GitHub Release。Release 地址为 <https://github.com/PermissionDog001/DEV-001-AutoCAD-Tile-Layout/releases/tag/v0.2.1>；未创建 PR。

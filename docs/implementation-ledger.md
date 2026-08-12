@@ -327,9 +327,9 @@ G3 当前基线为 Debug/Release Core `304/304`，算法与同源零写入预览
 - 正式图层为 `TILE_LAYOUT_ORTHO_START`，ACI 3；标志由圆、十字、两个三线开放箭头和“起铺点”文字组成。无合格整砖/半砖位置时不生成标志。旧命令不变。
 - 验证：Debug/Release Core 反射回归各 `346/346`；Core、测试项目和 AutoCAD 适配项目构建通过；用户已确认 AutoCAD 2021 实机验证达到预期效果。
 
-## 73. V0.2.1 发布准备（2026-08-12）
+## 73. V0.2.1 发布完成（2026-08-12）
 
 - V0.2.1 功能范围包括项目规则比例 UI、DOR9-C 灰缝候选恢复、自动尺寸标注和自动起铺点标志；程序集版本为 `0.2.1.0`。
 - 已准备本地最小发布包 `dist/TileLayout-0.2.1.zip`、包内说明和 SHA-256 清单，发布明细见 [release-v0.2.1.md](release-v0.2.1.md)。历史版本包未覆盖。
 - 已固化 `tools/Invoke-CoreReflectionTests.ps1`，用于 Debug/Release 的可复现 Core 回归；标准 .NET Framework VSTest 宿主发现限制按已知限制记录。
-- V0.2.1 面向用户的更新说明已清理，本地包已准备；当前等待推送 `origin/main`、创建 `v0.2.1` 标签和 GitHub Release。本次不创建 PR。
+- V0.2.1 面向用户的更新说明已清理，本地包已发布；`origin/main`、`v0.2.1` 标签和 GitHub Release 均已完成。本次不创建 PR。
