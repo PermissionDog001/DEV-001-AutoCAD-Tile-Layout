@@ -8,7 +8,8 @@ namespace TileLayout.AutoCAD.Adapter
     internal static class GuidedBoundaryPolylineConverter
     {
         internal static IReadOnlyCollection<LineSegment3D> BuildSegments(
-            IReadOnlyList<Point3D> inputVertices)
+            IReadOnlyList<Point3D> inputVertices,
+            bool allowNearEndpointClosure = false)
         {
             if (inputVertices == null)
             {
@@ -27,7 +28,11 @@ namespace TileLayout.AutoCAD.Adapter
             }
 
             while (vertices.Count > 1
-                && SamePoint(vertices[0], vertices[vertices.Count - 1]))
+                && (SamePoint(vertices[0], vertices[vertices.Count - 1])
+                    || allowNearEndpointClosure
+                        && NearEndpoint(
+                            vertices[0],
+                            vertices[vertices.Count - 1])))
             {
                 vertices.RemoveAt(vertices.Count - 1);
             }
@@ -59,6 +64,20 @@ namespace TileLayout.AutoCAD.Adapter
                     <= GeometryTolerance.Coordinate
                 && Math.Abs(first.Z - second.Z)
                     <= GeometryTolerance.Coordinate;
+        }
+
+        private static bool NearEndpoint(Point3D first, Point3D second)
+        {
+            if (Math.Abs(first.Z - second.Z)
+                > GeometryTolerance.Coordinate)
+            {
+                return false;
+            }
+
+            double deltaX = first.X - second.X;
+            double deltaY = first.Y - second.Y;
+            return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY))
+                <= GeometryTolerance.NearOrthogonalEndpointJoinTolerance;
         }
     }
 }

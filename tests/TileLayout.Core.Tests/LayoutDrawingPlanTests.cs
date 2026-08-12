@@ -57,15 +57,13 @@ namespace TileLayout.Core.Tests
             Assert.AreEqual(RoomSide.South, plan.StartPoint.FarWall);
             Assert.AreEqual(RoomSide.North, plan.StartPoint.InwardDirection);
             Assert.AreEqual(TileLayoutAxis.X, plan.StartPoint.AlongWallAxis);
-            Assert.AreEqual(
-                Opposite(selected.Candidate.GetAxisPlan(TileLayoutAxis.X)
-                    .ConstructionStartSide),
+            Assert.AreEqual(RoomSide.West,
                 plan.StartPoint.AlongWallDirection);
-            Assert.AreEqual("tile-0009", plan.StartPoint.WallTileId);
+            Assert.AreEqual("tile-0025", plan.StartPoint.WallTileId);
             Assert.AreEqual(
-                LayoutDrawingStartPointTileKind.FullTile,
+                LayoutDrawingStartPointTileKind.HalfTile,
                 plan.StartPoint.WallTileKind);
-            Assert.AreEqual(576.0, plan.StartPoint.Position.X,
+            Assert.AreEqual(1776.0, plan.StartPoint.Position.X,
                 GeometryTolerance.Coordinate);
             Assert.AreEqual(300.0, plan.StartPoint.Position.Y,
                 GeometryTolerance.Coordinate);
@@ -106,9 +104,13 @@ namespace TileLayout.Core.Tests
                     Opposite(doorWall),
                     plan.StartPoint.FarWall,
                     doorWall.ToString());
+                RoomSide expectedAlongWallDirection =
+                    doorWall == RoomSide.South
+                        || doorWall == RoomSide.North
+                        ? RoomSide.West
+                        : RoomSide.North;
                 Assert.AreEqual(
-                    Opposite(selected.Candidate.GetAxisPlan(
-                        plan.StartPoint.AlongWallAxis).ConstructionStartSide),
+                    expectedAlongWallDirection,
                     plan.StartPoint.AlongWallDirection,
                     doorWall.ToString());
                 if (doorWall == RoomSide.West || doorWall == RoomSide.East)
@@ -140,6 +142,62 @@ namespace TileLayout.Core.Tests
                 GeometryTolerance.Coordinate);
             Assert.AreEqual(401.5, plan.StartPoint.Position.Y,
                 GeometryTolerance.Coordinate);
+        }
+
+        [TestMethod]
+        public void AutomaticStartPointPrefersFarWallCornerTileWithOrWithoutPreference()
+        {
+            foreach (bool preferWallCornerAlignment in new[] { false, true })
+            {
+                EngineeringOrthogonalDecisionResult result =
+                    CornerStartPointSample(preferWallCornerAlignment);
+                EvaluatedLayoutCandidate selected = result.Candidates.First(
+                    item => item.State == LayoutCandidateState.AutomaticUsable
+                        && item.Candidate.Tiles.Any(tile =>
+                            tile.BoundarySides.Contains(RoomSide.West)
+                            && tile.BoundarySides.Contains(RoomSide.North)
+                            && Nearly(tile.NominalHeight, 300.0)));
+
+                LayoutDrawingPlan plan = LayoutDrawingPlanBuilder.Build(
+                    result,
+                    selected.Id);
+
+                Assert.IsNotNull(plan.StartPoint);
+                Assert.AreEqual(RoomSide.West, plan.StartPoint.FarWall);
+                Assert.AreEqual(RoomSide.South,
+                    plan.StartPoint.AlongWallDirection);
+                Assert.AreEqual(548.0, plan.StartPoint.Position.X,
+                    GeometryTolerance.Coordinate);
+                Assert.AreEqual(2815.0, plan.StartPoint.Position.Y,
+                    GeometryTolerance.Coordinate);
+                Assert.AreEqual(
+                    LayoutDrawingStartPointTileKind.HalfTile,
+                    plan.StartPoint.WallTileKind);
+            }
+        }
+
+        [TestMethod]
+        public void ComplexOrthogonalCandidatesRetainStartPointWhenOneFarWallEndHasNoIntersection()
+        {
+            EngineeringOrthogonalDecisionResult result =
+                ComplexSteppedRoomStartPointSample();
+            int retained = 0;
+
+            foreach (EvaluatedLayoutCandidate evaluated in result.Candidates)
+            {
+                if (evaluated.State == LayoutCandidateState.Eliminated)
+                {
+                    continue;
+                }
+
+                retained++;
+                LayoutDrawingPlan plan = LayoutDrawingPlanBuilder.Build(
+                    result,
+                    evaluated.Id);
+                Assert.IsNotNull(plan.StartPoint, evaluated.Id);
+            }
+
+            Assert.IsTrue(retained > 0);
         }
 
         [TestMethod]
@@ -935,6 +993,72 @@ namespace TileLayout.Core.Tests
                     1.5,
                     100,
                     source));
+        }
+
+        private static EngineeringOrthogonalDecisionResult
+            CornerStartPointSample(bool preferWallCornerAlignment)
+        {
+            AxisAlignedOrthogonalPolygon room = Room(
+                P(0, 415), P(0, 3115), P(4508, 3115),
+                P(4508, 0), P(548, 0), P(548, 415));
+            return EngineeringOrthogonalDecisionCalculator.Calculate(
+                new EngineeringOrthogonalDecisionRequest(
+                    room,
+                    600,
+                    600,
+                    new LayoutPolicyProfile("P-1"),
+                    new RoomDecision(
+                        new AxisAlignedRectangle(0, 4508, 0, 3115),
+                        new DoorOpening(RoomSide.East, 1300, 1900),
+                        RoomLayoutIntent.WholeRoomSinglePhase),
+                    null,
+                    LayoutDecisionMode.ControlledProduction,
+                    preferWallCornerAlignment));
+        }
+
+        private static EngineeringOrthogonalDecisionResult
+            ComplexSteppedRoomStartPointSample()
+        {
+            AxisAlignedOrthogonalPolygon room = Room(
+                P(832.19436286384735, 688.06770197356991),
+                P(6887.8193057849567, 688.067701973569),
+                P(6887.8193057849567, 1213.6564359078461),
+                P(7666.2137492234251, 1213.6564359078461),
+                P(7666.2137492234251, 141.45541868191731),
+                P(12339.692550068714, 141.45541868191731),
+                P(12339.692550068714, 3275.3494004910522),
+                P(11477.147362370844, 3275.3494004910522),
+                P(11477.147362370844, 5907.04836491891),
+                P(3693.31974640226, 5907.04836491891),
+                P(3693.31974640226, 6390.5900001384452),
+                P(2788.6992259339972, 6390.5900001384452),
+                P(2788.6992259339972, 5907.04836491891),
+                P(832.19436286384735, 5907.04836491891));
+            AxisAlignedRectangle control = new AxisAlignedRectangle(
+                832.19436286384735,
+                12339.692550068714,
+                688.06770197356991,
+                5907.04836491891);
+            double doorStart = 688.06770197356991
+                + ((5907.04836491891 - 688.06770197356991 - 600.0)
+                    * 0.37);
+            DoorOpening door = new DoorOpening(
+                RoomSide.West,
+                doorStart,
+                doorStart + 600.0);
+            return EngineeringOrthogonalDecisionCalculator.Calculate(
+                new EngineeringOrthogonalDecisionRequest(
+                    room,
+                    600,
+                    600,
+                    new LayoutPolicyProfile("complex-start-point", 100),
+                    new RoomDecision(
+                        control,
+                        door,
+                        RoomLayoutIntent.WholeRoomSinglePhase),
+                    null,
+                    LayoutDecisionMode.ControlledProduction,
+                    true));
         }
 
         private static EngineeringOrthogonalDecisionResult L01RightHandDoor(

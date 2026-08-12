@@ -340,3 +340,19 @@ G3 当前基线为 Debug/Release Core `304/304`，算法与同源零写入预览
 - Core 修复：`LayoutDrawingPlanBuilder` 只对 `BuildWallGroutBoundaries` 生成的贴墙灰缝边界做归一化合并；同方向、同固定坐标、同标高且线段间隙不超过灰缝宽度时合并为一条贯通线。内部 `candidate.DivisionLines` 不参与该合并，旧命令仍保持原行为。
 - 回归：`DOR9WallGroutBoundariesAreMergedIntoContinuousEdges` 覆盖四条矩形贴墙边界，Debug/Release 反射执行全部 `347/347`；Core、测试项目和 AutoCAD 适配项目 Debug/Release 构建通过。
 - 交付：更新 V0.2.1 发布说明、包内使用说明、交付目录说明、压缩包和 SHA-256 清单；仅维护现有 V0.2.1 发布内容，不改变程序集版本、标签或版本号。
+
+## 75. 多段线首尾微间隙读取修复（2026-08-12）
+
+- 样本 `Drawing1.dwg` 的唯一模型空间图元为 `AcDbPolyline`，`Closed=False`；首尾顶点二维间距约 `0.108 mm`。旧适配层只按 `1e-6 mm` 坐标公差判断未闭合多段线，因此在读取阶段失败；炸开后的 LINE 则由 `OrthogonalBoundaryNormalizer` 使用 `3 mm` 端点连接容差处理。
+- 适配修复：`TryReadPolylineVertices` 对 LWPOLYLINE/Polyline2d 复用 `GeometryTolerance.NearOrthogonalEndpointJoinTolerance` 判断开放端点闭合资格；`GuidedBoundaryPolylineConverter` 在明确标记为开放端点修复时移除近重复末端，再按原有顶点顺序生成闭环。正式闭合多段线仍只按原有确定性重复顶点规则处理，避免吞掉合法短边。
+- 回归：`PolylineConverter_ClosesSmallOpenEndpointGapLikeLineInput` 使用样本坐标覆盖 `0.108 mm` 首尾间隙；Debug/Release 反射回归 `348/348`，Core/测试/AutoCAD 适配 Debug/Release 构建通过。
+- 宿主验证：样本只读检查后 DWG SHA-256 未变化；尚未在 AutoCAD 2021 中重新 NETLOAD 并执行 `TILEUI` 选择验证，当前不宣称实机完成。
+
+## 复杂房间起铺点与其他多段线兼容修复（进行中；2026-08-12）
+
+- 用户澄清：前述 `Drawing1.dwg` 只验证了轻量多段线 `0.108 mm` 首尾微间隙；本轮“其他案例偶尔无法选择”的问题不发生在该样本中，不能把 `3 mm` 作为唯一根因。
+- 起铺点：四砖交界搜索先检查实际铺贴起始侧，再检查同一远墙的另一端；继续保留贴墙整砖/半砖资格、四砖灰缝中心和实际铺贴方向箭头规则，复杂凹边/台阶不再因为单侧无交界而直接丢失标志。
+- 多段线：适配层新增直线型 `3D POLYLINE` 顶点读取；非直线型 3D 多段线以及圆弧/bulge、非共面、自交、多环和超过 `3 mm` 的首尾间隙继续拒绝。原始实体只读，未增加炸开或修改行为。
+- 诊断：超过首尾误差上限时输出实测间距，便于下一次实机复现区分容差超限、实体类型和边界拓扑问题；当前不扩大 `3 mm` 安全上限。
+- 自动验证：Debug/Release 反射回归均为 `350/350`，完整解决方案构建 `0` 警告、`0` 错误。尚未对用户尚未提供的其他失败案例完成 AutoCAD 2021 宿主复核，当前不宣称实机验收完成。
+- 交付：本轮用户可见更新已合并到现有 `V0.2.1` 发布说明、使用说明和 `dist/TileLayout-0.2.1.zip`；新包 SHA-256 为 `828E3A47F9D888F1160BF89887D4DDAD0A03AFA44E52D5930754F090FC54D2EA`，不创建新版本。

@@ -31,4 +31,4 @@ V0.2.1 当前正式交付物：
 - `TileLayout-0.2.1-sha256.txt`：压缩包及包内文件校验值；
 - `docs/release-v0.2.1.md`：本版本更新内容、使用范围和验证记录。
 
-本版本在 V0.2.0 基础上增加项目铺贴规则设置、灰缝排版稳定性改进、自动尺寸标注、自动起铺点标志，并将紧贴抹灰完成面的同一直线边界线贯通显示。已发布到 [GitHub Release v0.2.1](https://github.com/PermissionDog001/DEV-001-AutoCAD-Tile-Layout/releases/tag/v0.2.1)。
+本版本在 V0.2.0 基础上增加项目铺贴规则设置、灰缝排版稳定性改进、自动尺寸标注、自动起铺点标志，并将紧贴抹灰完成面的同一直线边界线贯通显示。本次维护进一步改进复杂房间起铺点选择，并支持直线型 `3D POLYLINE` 房间边界；内容合并到现有 [GitHub Release v0.2.1](https://github.com/PermissionDog001/DEV-001-AutoCAD-Tile-Layout/releases/tag/v0.2.1)。

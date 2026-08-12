@@ -48,8 +48,8 @@ namespace TileLayout.Core
 
         /// <summary>
         /// Direction of the arrow along the actual construction sequence on
-        /// the far-wall band. This is the direction from the construction
-        /// start side toward the opposite side.
+        /// the far-wall band. For a corner tile this points away from the
+        /// selected room corner and into the remaining wall band.
         /// </summary>
         public RoomSide AlongWallDirection { get; }
 

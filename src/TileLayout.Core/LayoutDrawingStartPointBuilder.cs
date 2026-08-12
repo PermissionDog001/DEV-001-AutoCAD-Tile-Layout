@@ -124,6 +124,7 @@ namespace TileLayout.Core
                         alongStart,
                         alongEnd,
                         tileKind,
+                        IsWallCornerTile(wallTile, farWall),
                         wallCoordinate,
                         adjacentCoordinate));
                 }
@@ -136,25 +137,48 @@ namespace TileLayout.Core
 
             StartPointPair selected = null;
             double alongCoordinate = double.NaN;
-            foreach (StartPointPair pair in pairs
-                .OrderBy(item => item.NormalGap)
+            IEnumerable<StartPointPair> orderedPairs = pairs
+                .OrderByDescending(item => item.IsWallCornerTile)
+                .ThenBy(item => item.NormalGap)
                 .ThenBy(item => GetDirectionalCoordinate(
                     item.AlongStart,
                     item.AlongEnd,
                     alongPlan.ConstructionStartSide))
                 .ThenBy(item => item.WallTileIndex)
-                .ThenBy(item => item.AdjacentTileIndex))
+                .ThenBy(item => item.AdjacentTileIndex);
+            bool constructionSideUsesLowEnd = IsLowConstructionSide(
+                alongAxis,
+                alongPlan.ConstructionStartSide);
+            foreach (StartPointPair pair in orderedPairs)
             {
                 if (TryGetFourTileIntersection(
                     candidate,
                     pair,
-                    alongPlan.ConstructionStartSide,
+                    constructionSideUsesLowEnd,
                     farWall,
                     alongAxis,
                     out alongCoordinate))
                 {
                     selected = pair;
                     break;
+                }
+            }
+
+            if (selected == null)
+            {
+                foreach (StartPointPair pair in orderedPairs)
+                {
+                    if (TryGetFourTileIntersection(
+                        candidate,
+                        pair,
+                        !constructionSideUsesLowEnd,
+                        farWall,
+                        alongAxis,
+                        out alongCoordinate))
+                    {
+                        selected = pair;
+                        break;
+                    }
                 }
             }
 
@@ -169,8 +193,10 @@ namespace TileLayout.Core
                 candidate.Tiles[selected.WallTileIndex],
                 candidate.Tiles[selected.AdjacentTileIndex],
                 farWall);
-            RoomSide alongWallDirection = Opposite(
-                alongPlan.ConstructionStartSide);
+            RoomSide alongWallDirection = GetAlongWallDirection(
+                candidate.Tiles[selected.WallTileIndex],
+                farWall,
+                Opposite(alongPlan.ConstructionStartSide));
             Point3D position = CreatePoint(
                 alongAxis,
                 alongCoordinate,
@@ -193,15 +219,12 @@ namespace TileLayout.Core
         private static bool TryGetFourTileIntersection(
             LayoutCandidate candidate,
             StartPointPair pair,
-            RoomSide constructionStartSide,
+            bool useLowEnd,
             RoomSide farWall,
             TileLayoutAxis alongAxis,
             out double alongCoordinate)
         {
             alongCoordinate = double.NaN;
-            bool useLowEnd = IsLowConstructionSide(
-                alongAxis,
-                constructionStartSide);
             TileFootprint wallTile = candidate.Tiles[pair.WallTileIndex];
             TileFootprint adjacentTile =
                 candidate.Tiles[pair.AdjacentTileIndex];
@@ -635,6 +658,73 @@ namespace TileLayout.Core
             return tile.BoundarySides.Contains(side);
         }
 
+        private static bool IsWallCornerTile(
+            TileFootprint tile,
+            RoomSide farWall)
+        {
+            if (!ContainsSide(tile, farWall))
+            {
+                return false;
+            }
+
+            return farWall == RoomSide.West
+                || farWall == RoomSide.East
+                ? ContainsSide(tile, RoomSide.South)
+                    || ContainsSide(tile, RoomSide.North)
+                : ContainsSide(tile, RoomSide.West)
+                    || ContainsSide(tile, RoomSide.East);
+        }
+
+        private static RoomSide GetAlongWallDirection(
+            TileFootprint wallTile,
+            RoomSide farWall,
+            RoomSide constructionDirection)
+        {
+            RoomSide cornerSide;
+            if (TryGetCornerSide(wallTile, farWall, out cornerSide))
+            {
+                return Opposite(cornerSide);
+            }
+
+            return constructionDirection;
+        }
+
+        private static bool TryGetCornerSide(
+            TileFootprint tile,
+            RoomSide farWall,
+            out RoomSide cornerSide)
+        {
+            cornerSide = RoomSide.West;
+            bool hasFirstSide;
+            bool hasSecondSide;
+            if (farWall == RoomSide.West || farWall == RoomSide.East)
+            {
+                hasFirstSide = ContainsSide(tile, RoomSide.South);
+                hasSecondSide = ContainsSide(tile, RoomSide.North);
+                if (hasFirstSide != hasSecondSide)
+                {
+                    cornerSide = hasFirstSide
+                        ? RoomSide.South
+                        : RoomSide.North;
+                    return true;
+                }
+            }
+            else
+            {
+                hasFirstSide = ContainsSide(tile, RoomSide.West);
+                hasSecondSide = ContainsSide(tile, RoomSide.East);
+                if (hasFirstSide != hasSecondSide)
+                {
+                    cornerSide = hasFirstSide
+                        ? RoomSide.West
+                        : RoomSide.East;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private static RoomSide Opposite(RoomSide side)
         {
             switch (side)
@@ -701,6 +791,7 @@ namespace TileLayout.Core
                 double alongStart,
                 double alongEnd,
                 LayoutDrawingStartPointTileKind wallTileKind,
+                bool isWallCornerTile,
                 double normalWallCoordinate,
                 double normalAdjacentCoordinate)
             {
@@ -710,6 +801,7 @@ namespace TileLayout.Core
                 AlongStart = alongStart;
                 AlongEnd = alongEnd;
                 WallTileKind = wallTileKind;
+                IsWallCornerTile = isWallCornerTile;
                 NormalWallCoordinate = normalWallCoordinate;
                 NormalAdjacentCoordinate = normalAdjacentCoordinate;
             }
@@ -725,6 +817,8 @@ namespace TileLayout.Core
             public double AlongEnd { get; }
 
             public LayoutDrawingStartPointTileKind WallTileKind { get; }
+
+            public bool IsWallCornerTile { get; }
 
             public double NormalWallCoordinate { get; }
 

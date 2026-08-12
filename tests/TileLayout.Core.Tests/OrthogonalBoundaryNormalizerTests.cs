@@ -51,6 +51,48 @@ namespace TileLayout.Core.Tests
         }
 
         [TestMethod]
+        public void PolylineConverter_ClosesSmallOpenEndpointGapLikeLineInput()
+        {
+            IReadOnlyCollection<LineSegment3D> segments =
+                GuidedBoundaryPolylineConverter.BuildSegments(
+                    new List<Point3D>
+                    {
+                        new Point3D(
+                            3905.6685588740365,
+                            5704.0967723746417),
+                        new Point3D(
+                            10256.184531607534,
+                            5704.0967761893389),
+                        new Point3D(
+                            10256.544422724153,
+                            2554.0982305426714),
+                        new Point3D(
+                            4455.3381981634157,
+                            2554.0982305426714),
+                        new Point3D(
+                            4455.3381981634157,
+                            2654.0998832602618),
+                        new Point3D(
+                            3905.7765197538392,
+                            2654.0804302115557),
+                        new Point3D(
+                            3905.7765185021417,
+                            5704.0967723746417)
+                    },
+                    true);
+
+            Assert.AreEqual(6, segments.Count);
+            OrthogonalBoundaryNormalizationResult normalized =
+                OrthogonalBoundaryNormalizer.Analyze(segments);
+            Assert.IsTrue(normalized.IsAccepted, normalized.Message);
+
+            OrthogonalRoomValidationResult validation =
+                OrthogonalRoomValidator.Validate(normalized.Lines);
+            Assert.IsTrue(validation.IsValid, validation.ErrorMessage);
+            Assert.AreEqual(6, validation.Room.Vertices.Count);
+        }
+
+        [TestMethod]
         public void PolylineConverter_PreservesAxisAlignedConcaveTopology()
         {
             IReadOnlyCollection<LineSegment3D> segments =

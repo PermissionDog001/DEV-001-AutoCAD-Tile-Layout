@@ -462,7 +462,7 @@ namespace TileLayout.AutoCAD
                     EndGuidedAction(
                         control,
                         editor,
-                        "边界读取失败；请只选择当前模型空间中的 LINE、闭合 LWPOLYLINE 或传统二维 POLYLINE。" );
+                        "边界读取失败；请只选择当前模型空间中的 LINE、直线型 LWPOLYLINE、二维或 3D POLYLINE；原始实体未修改。" );
                     return;
                 }
 
@@ -1878,7 +1878,9 @@ namespace TileLayout.AutoCAD
             var options = new PromptSelectionOptions
             {
                 MessageForAdding =
-                    "\n请选择一间房的边界：四条以上 LINE，或一个闭合 LWPOLYLINE/二维 POLYLINE；禁止混合和多环：",
+                    "\n请选择一间房的边界：四条以上 LINE，或一个闭合（或首尾误差不超过 "
+                    + GeometryTolerance.NearOrthogonalEndpointJoinTolerance
+                    + " mm）的直线型 LWPOLYLINE/二维/3D POLYLINE；禁止混合和多环：",
                 RejectObjectsFromNonCurrentSpace = true
             };
             var filter = new SelectionFilter(
@@ -1901,6 +1903,7 @@ namespace TileLayout.AutoCAD
             var lineSnapshots = new List<CoreLineSegment3D>();
             List<Point3d> polylineVertices = null;
             bool sawPolyline = false;
+            bool allowNearEndpointClosure = false;
 
             foreach (ObjectId selectedId in selectedIds)
             {
@@ -1922,16 +1925,12 @@ namespace TileLayout.AutoCAD
                     return null;
                 }
 
-                if (entity is Polyline3d)
-                {
-                    editor.WriteMessage(
-                        "\n首期不支持 Polyline3d；原始实体未修改。 ");
-                    return null;
-                }
-
                 Polyline lightweight = entity as Polyline;
                 Polyline2d legacy = entity as Polyline2d;
-                if (lightweight != null || legacy != null)
+                Polyline3d spatial = entity as Polyline3d;
+                if (lightweight != null
+                    || legacy != null
+                    || spatial != null)
                 {
                     if (sawPolyline || lineSnapshots.Count > 0
                         || selectedIds.Length != 1)
@@ -1946,7 +1945,9 @@ namespace TileLayout.AutoCAD
                         transaction,
                         lightweight,
                         legacy,
+                        spatial,
                         out polylineVertices,
+                        out allowNearEndpointClosure,
                         editor))
                     {
                         return null;
@@ -1959,7 +1960,10 @@ namespace TileLayout.AutoCAD
                 if (line == null || sawPolyline)
                 {
                     editor.WriteMessage(
-                        "\n只接受 LINE、闭合 LWPOLYLINE 或传统二维 POLYLINE；禁止混合输入。 ");
+                        "\n只接受 LINE、闭合或首尾误差不超过 "
+                        + GeometryTolerance.NearOrthogonalEndpointJoinTolerance
+                        + " mm 的直线型 LWPOLYLINE/二维或 3D POLYLINE；"
+                        + "禁止混合输入。 ");
                     return null;
                 }
 
@@ -1973,7 +1977,9 @@ namespace TileLayout.AutoCAD
 
             if (sawPolyline)
             {
-                return BuildPolylineSegments(polylineVertices);
+                return BuildPolylineSegments(
+                    polylineVertices,
+                    allowNearEndpointClosure);
             }
 
             return lineSnapshots.Count >= 4 ? lineSnapshots : null;
@@ -1983,10 +1989,13 @@ namespace TileLayout.AutoCAD
             Transaction transaction,
             Polyline lightweight,
             Polyline2d legacy,
+            Polyline3d spatial,
             out List<Point3d> vertices,
+            out bool allowNearEndpointClosure,
             Editor editor)
         {
             vertices = new List<Point3d>();
+            allowNearEndpointClosure = false;
             if (lightweight != null)
             {
                 for (int index = 0;
@@ -2004,12 +2013,22 @@ namespace TileLayout.AutoCAD
                     vertices.Add(lightweight.GetPoint3dAt(index));
                 }
 
-                if (!lightweight.Closed
-                    && !HasDeterministicEndpointClosure(vertices))
+                if (!lightweight.Closed)
                 {
-                    editor.WriteMessage(
-                        "\nLWPOLYLINE 必须闭合；请使用 PL 的“闭合(C)”或使首尾顶点完全重合，原始实体未修改。 ");
-                    return false;
+                    if (!HasPermittedEndpointClosure(vertices))
+                    {
+                        editor.WriteMessage(
+                            "\nLWPOLYLINE 必须闭合，或首尾顶点间距不超过 "
+                            + GeometryTolerance.NearOrthogonalEndpointJoinTolerance
+                            + " mm；当前首尾间距约 "
+                            + EndpointGap(vertices).ToString("0.###")
+                            + " mm。请使用 PL 的“闭合(C)”或修正首尾间隙，原始实体未修改。 ");
+                        return false;
+                    }
+
+                    allowNearEndpointClosure = !SamePoint(
+                        vertices[0],
+                        vertices[vertices.Count - 1]);
                 }
             }
             else if (legacy != null)
@@ -2038,12 +2057,67 @@ namespace TileLayout.AutoCAD
                     vertices.Add(vertex.Position);
                 }
 
-                if (!legacy.Closed
-                    && !HasDeterministicEndpointClosure(vertices))
+                if (!legacy.Closed)
+                {
+                    if (!HasPermittedEndpointClosure(vertices))
+                    {
+                        editor.WriteMessage(
+                            "\n二维 POLYLINE 必须闭合，或首尾顶点间距不超过 "
+                            + GeometryTolerance.NearOrthogonalEndpointJoinTolerance
+                            + " mm；当前首尾间距约 "
+                            + EndpointGap(vertices).ToString("0.###")
+                            + " mm。请使用 PEDIT 的“闭合”或修正首尾间隙，原始实体未修改。 ");
+                        return false;
+                    }
+
+                    allowNearEndpointClosure = !SamePoint(
+                        vertices[0],
+                        vertices[vertices.Count - 1]);
+                }
+            }
+            else if (spatial != null)
+            {
+                if (spatial.PolyType != Poly3dType.SimplePoly)
                 {
                     editor.WriteMessage(
-                        "\n二维 POLYLINE 必须闭合；请使用 PEDIT 的“闭合”或使首尾顶点完全重合，原始实体未修改。 ");
+                        "\n3D POLYLINE 必须是直线型，当前为 {0}；"
+                        + "请先转换为直线型多段线或 LINE，原始实体未修改。 ",
+                        spatial.PolyType);
                     return false;
+                }
+
+                foreach (ObjectId vertexId in spatial)
+                {
+                    PolylineVertex3d vertex = transaction.GetObject(
+                        vertexId,
+                        OpenMode.ForRead,
+                        false) as PolylineVertex3d;
+                    if (vertex == null)
+                    {
+                        editor.WriteMessage(
+                            "\n3D POLYLINE 顶点读取失败；原始实体未修改。 ");
+                        return false;
+                    }
+
+                    vertices.Add(vertex.Position);
+                }
+
+                if (!spatial.Closed)
+                {
+                    if (!HasPermittedEndpointClosure(vertices))
+                    {
+                        editor.WriteMessage(
+                            "\n3D POLYLINE 必须闭合，或首尾顶点间距不超过 "
+                            + GeometryTolerance.NearOrthogonalEndpointJoinTolerance
+                            + " mm；当前首尾间距约 "
+                            + EndpointGap(vertices).ToString("0.###")
+                            + " mm。请修正首尾间隙，原始实体未修改。 ");
+                        return false;
+                    }
+
+                    allowNearEndpointClosure = !SamePoint(
+                        vertices[0],
+                        vertices[vertices.Count - 1]);
                 }
             }
 
@@ -2058,16 +2132,40 @@ namespace TileLayout.AutoCAD
             return true;
         }
 
-        private static bool HasDeterministicEndpointClosure(
+        private static bool HasPermittedEndpointClosure(
             IList<Point3d> vertices)
         {
             return vertices != null
                 && vertices.Count > 1
-                && SamePoint(vertices[0], vertices[vertices.Count - 1]);
+                && (SamePoint(vertices[0], vertices[vertices.Count - 1])
+                    || NearEndpoint(
+                        vertices[0],
+                        vertices[vertices.Count - 1]));
+        }
+
+        private static double EndpointGap(IList<Point3d> vertices)
+        {
+            if (vertices == null || vertices.Count < 2)
+            {
+                return double.NaN;
+            }
+
+            double deltaX = vertices[0].X
+                - vertices[vertices.Count - 1].X;
+            double deltaY = vertices[0].Y
+                - vertices[vertices.Count - 1].Y;
+            double deltaZ = vertices[0].Z
+                - vertices[vertices.Count - 1].Z;
+            return Math.Sqrt(
+                (deltaX * deltaX)
+                + (deltaY * deltaY)
+                + (deltaZ * deltaZ));
         }
 
         private static IReadOnlyCollection<CoreLineSegment3D>
-            BuildPolylineSegments(IList<Point3d> vertices)
+            BuildPolylineSegments(
+                IList<Point3d> vertices,
+                bool allowNearEndpointClosure)
         {
             var coreVertices = new List<CorePoint3D>(vertices.Count);
             for (int index = 0; index < vertices.Count; index++)
@@ -2078,7 +2176,8 @@ namespace TileLayout.AutoCAD
             }
 
             return GuidedBoundaryPolylineConverter.BuildSegments(
-                coreVertices);
+                coreVertices,
+                allowNearEndpointClosure);
         }
 
         private static void RemoveDeterministicDuplicateVertices(
@@ -2114,6 +2213,20 @@ namespace TileLayout.AutoCAD
                     <= GeometryTolerance.Coordinate
                 && Math.Abs(first.Z - second.Z)
                     <= GeometryTolerance.Coordinate;
+        }
+
+        private static bool NearEndpoint(Point3d first, Point3d second)
+        {
+            if (Math.Abs(first.Z - second.Z)
+                > GeometryTolerance.Coordinate)
+            {
+                return false;
+            }
+
+            double deltaX = first.X - second.X;
+            double deltaY = first.Y - second.Y;
+            return Math.Sqrt((deltaX * deltaX) + (deltaY * deltaY))
+                <= GeometryTolerance.NearOrthogonalEndpointJoinTolerance;
         }
 
         private static IReadOnlyCollection<CoreLineSegment3D> ReadBoundarySnapshots(
